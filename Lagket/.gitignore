@@ -1,4 +1,4 @@
-# Miscellaneous
+# ─── Miscellaneous ─────────────────────────────────────────────────────────────
 *.class
 *.log
 *.pyc
@@ -11,35 +11,81 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+*.tmp
+*.bak
+*.swp
+*~
 
-# IntelliJ related
+# ─── IntelliJ Related ────────────────────────────────────────────────────────
 *.iml
 *.ipr
 *.iws
 .idea/
+out/
+gen/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# ─── VS Code Related ──────────────────────────────────────────────────────────
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# ─── Flutter/Dart/Pub Related ───────────────────────────────────────────────
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
-/build/
-/coverage/
+build/
+coverage/
+doc/api/
+.last_build_id
 
-# Symbolication related
-app.*.symbols
+# ─── Android Related ──────────────────────────────────────────────────────────
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+**/android/local.properties
+**/android/key.properties
+**/android/*.keystore
+**/android/*.jks
+**/android/app/*.keystore
+**/android/app/*.jks
+**/android/captures/
+.gradle/
+captures/
+**/android/gradle/
 
-# Obfuscation related
-app.*.map.json
+# ─── iOS Related ──────────────────────────────────────────────────────────────
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/DerivedData/
+**/ios/*.xcworkspace
+**/ios/.last_build_id
+**/ios/Config/
+**/ios/Service-Info.plist
+**/ios/GoogleService-Info.plist
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# ─── Web Related ──────────────────────────────────────────────────────────────
+**/web/stacktrace.js
+**/web/manifest.json
+**/web/favicon.png
+
+# ─── Firebase Specific ───────────────────────────────────────────────────────
+# Ignore Firebase services configuration files
+google-services.json
+GoogleService-Info.plist
+firebase-debug.log
+.firebase/
+
+# ─── Environment Variables ────────────────────────────────────────────────────
+.env*
+!.env.example

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "335830127464",
+    "project_id": "lagket",
+    "storage_bucket": "lagket.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:335830127464:android:6607c0cb729697c2a13cdd",
+        "android_client_info": {
+          "package_name": "com.example.lagket"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsDiy7qeQSyxyR-dxQ06CVR21eR6vu--k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

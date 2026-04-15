@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../constants/app_constants.dart';
 import '../../shared/models/user_model.dart';
 import '../../shared/models/photo_model.dart';
 import '../../shared/models/friend_request_model.dart';
 import '../../shared/models/friendship_model.dart';
+import '../constants/app_constants.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;

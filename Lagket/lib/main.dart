@@ -6,29 +6,30 @@ import 'package:google_fonts/google_fonts.dart';
 import 'core/constants/app_colors.dart';
 import 'features/notification/services/fcm_service.dart';
 import 'routes/app_router.dart';
+import 'firebase_options.dart';
+import 'package:flutter/foundation.dart';
 
 // Background message handler (must be top-level)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp();
-
-  // Register background FCM handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // Initialize FCM & local notifications
-  await FCMService().initialize();
-
-  runApp(
-    // Wrap in ProviderScope for Riverpod
-    const ProviderScope(child: LagketApp()),
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    await FCMService().initialize();
+  }
+
+  runApp(const ProviderScope(child: LagketApp()));
 }
 
 class LagketApp extends ConsumerWidget {

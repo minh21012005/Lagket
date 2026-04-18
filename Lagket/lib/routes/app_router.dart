@@ -11,6 +11,7 @@ import '../features/camera/screens/camera_screen.dart';
 import '../features/camera/screens/preview_screen.dart';
 import '../features/camera/screens/send_screen.dart';
 import '../features/feed/screens/feed_screen.dart';
+import '../features/feed/screens/history_screen.dart';
 import '../features/feed/screens/photo_detail_screen.dart';
 import '../features/feed/screens/widget_preview_screen.dart';
 import '../features/friend/screens/add_friend_screen.dart';
@@ -88,10 +89,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const SendScreen(),
       ),
 
-      // ─── Feed ───────────────────────────────────────────────────────────────
+      // ─── Feed / History ──────────────────────────────────────────────────────
       GoRoute(
         path: '/feed',
         builder: (_, __) => const FeedScreen(),
+      ),
+      GoRoute(
+        path: '/history',
+        builder: (_, __) => const HistoryScreen(),
       ),
       GoRoute(
         path: '/photo/:id',

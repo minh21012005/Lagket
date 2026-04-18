@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/profile_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../friend/providers/friend_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/firestore_service.dart';
 import '../../../shared/widgets/user_avatar.dart';
+
+// ─── Providers ─────────────────────────────────────────────────────────────────
+
+final _sentPhotoCountProvider = FutureProvider<int>((ref) async {
+  final user = ref.watch(currentUserProvider).value;
+  if (user == null) return 0;
+  return ref.watch(firestoreServiceProvider).getSentPhotoCount(user.id);
+});
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -100,6 +108,18 @@ class ProfileScreen extends ConsumerWidget {
                           value:
                               '${friendsAsync.value?.length ?? 0}',
                           icon: Icons.people_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _StatCard(
+                          label: 'Photos Sent',
+                          value: ref
+                                  .watch(_sentPhotoCountProvider)
+                                  .value
+                                  ?.toString() ??
+                              '—',
+                          icon: Icons.send_rounded,
                         ),
                       ),
                       const SizedBox(width: 12),

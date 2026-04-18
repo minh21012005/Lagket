@@ -10,6 +10,8 @@ class AppConstants {
   static const String photosCollection = 'photos';
   static const String friendshipsCollection = 'friendships';
   static const String friendRequestsCollection = 'friend_requests';
+  static const String reactionsCollection = 'reactions';
+  static const String messagesCollection = 'messages';
 
   // Storage paths
   static const String avatarsPath = 'avatars';

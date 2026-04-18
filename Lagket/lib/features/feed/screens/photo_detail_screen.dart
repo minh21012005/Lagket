@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../providers/reaction_provider.dart';
+import '../providers/message_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../shared/models/photo_model.dart';
+import '../../../shared/models/reaction_model.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/user_avatar.dart';
 
@@ -39,7 +42,7 @@ class PhotoDetailScreen extends ConsumerWidget {
                 child: Text('Photo not found.',
                     style: TextStyle(color: Colors.white)));
           }
-          return _PhotoDetailContent(photo: photo, ref: ref);
+          return _PhotoDetailContent(photo: photo);
         },
         loading: () => const Center(
           child: CircularProgressIndicator(
@@ -54,14 +57,53 @@ class PhotoDetailScreen extends ConsumerWidget {
   }
 }
 
-class _PhotoDetailContent extends StatelessWidget {
+class _PhotoDetailContent extends ConsumerStatefulWidget {
   final PhotoModel photo;
-  final WidgetRef ref;
-  const _PhotoDetailContent({required this.photo, required this.ref});
+  const _PhotoDetailContent({required this.photo});
+
+  @override
+  ConsumerState<_PhotoDetailContent> createState() =>
+      _PhotoDetailContentState();
+}
+
+class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
+  final _msgController = TextEditingController();
+  bool _sendingMsg = false;
+  bool _showMessages = false;
+
+  @override
+  void dispose() {
+    _msgController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendMessage(String currentUserId) async {
+    final text = _msgController.text.trim();
+    if (text.isEmpty) return;
+    setState(() => _sendingMsg = true);
+    try {
+      await ref.read(firestoreServiceProvider).addMessage(
+            photoId: widget.photo.id,
+            senderId: currentUserId,
+            content: text,
+          );
+      _msgController.clear();
+    } finally {
+      if (mounted) setState(() => _sendingMsg = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final senderAsync = ref.watch(_photoSenderProvider(photo.senderId));
+    final currentUser = ref.watch(currentUserProvider).value;
+    final currentUserId = currentUser?.id ?? '';
+    final senderAsync = ref.watch(_photoSenderProvider(widget.photo.senderId));
+    final reactionsAsync =
+        ref.watch(reactionsProvider(widget.photo.id));
+    final myReaction =
+        ref.watch(myReactionProvider((widget.photo.id, currentUserId)));
+    final messagesAsync =
+        ref.watch(messagesProvider(widget.photo.id));
 
     return Stack(
       fit: StackFit.expand,
@@ -69,7 +111,7 @@ class _PhotoDetailContent extends StatelessWidget {
         // Zoomable image
         PhotoView(
           imageProvider:
-              CachedNetworkImageProvider(photo.imageUrl),
+              CachedNetworkImageProvider(widget.photo.imageUrl),
           minScale: PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 2.5,
           backgroundDecoration:
@@ -110,9 +152,9 @@ class _PhotoDetailContent extends StatelessWidget {
                           style: AppTextStyles.headlineSmall
                               .copyWith(color: Colors.white),
                         ),
-                        if (photo.createdAt != null)
+                        if (widget.photo.createdAt != null)
                           Text(
-                            DateFormatter.formatDate(photo.createdAt!),
+                            DateFormatter.formatDate(widget.photo.createdAt!),
                             style: AppTextStyles.bodySmall
                                 .copyWith(color: Colors.white70),
                           ),
@@ -127,16 +169,204 @@ class _PhotoDetailContent extends StatelessWidget {
           ),
         ),
 
+        // Reaction summary
+        Positioned(
+          bottom: 160,
+          left: 16,
+          right: 16,
+          child: reactionsAsync.when(
+            data: (reactions) {
+              if (reactions.isEmpty) return const SizedBox.shrink();
+              final counts = <ReactionType, int>{};
+              for (final r in reactions) {
+                counts[r.type] = (counts[r.type] ?? 0) + 1;
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: counts.entries.map((e) {
+                  return Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text('${e.key.emoji} ${e.value}',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 13)),
+                  );
+                }).toList(),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+        ),
+
         // Reaction row
         Positioned(
-          bottom: 100,
+          bottom: 108,
           left: 0,
           right: 0,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: ['❤️', '😂', '😮', '🔥', '👏']
-                .map((emoji) => _ReactionButton(emoji: emoji))
-                .toList(),
+            children: ReactionType.values.map((type) {
+              final isActive = myReaction?.type == type;
+              return _ReactionButton(
+                type: type,
+                isActive: isActive,
+                onTap: () async {
+                  final fs = ref.read(firestoreServiceProvider);
+                  if (isActive) {
+                    await fs.removeReaction(
+                        photoId: widget.photo.id,
+                        userId: currentUserId);
+                  } else {
+                    await fs.upsertReaction(
+                        photoId: widget.photo.id,
+                        userId: currentUserId,
+                        type: type);
+                  }
+                },
+              );
+            }).toList(),
+          ),
+        ),
+
+        // Message panel
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 52),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.75)
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_showMessages)
+                  messagesAsync.when(
+                    data: (msgs) => msgs.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text('No messages yet',
+                                style: AppTextStyles.bodySmall
+                                    .copyWith(color: Colors.white54)),
+                          )
+                        : Container(
+                            constraints:
+                                const BoxConstraints(maxHeight: 140),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              reverse: true,
+                              itemCount: msgs.length,
+                              itemBuilder: (_, i) {
+                                final m = msgs[msgs.length - 1 - i];
+                                final isMe = m.senderId == currentUserId;
+                                return Align(
+                                  alignment: isMe
+                                      ? Alignment.centerRight
+                                      : Alignment.centerLeft,
+                                  child: Container(
+                                    margin:
+                                        const EdgeInsets.only(bottom: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 7),
+                                    decoration: BoxDecoration(
+                                      color: isMe
+                                          ? AppColors.primary
+                                              .withValues(alpha: 0.85)
+                                          : Colors.white
+                                              .withValues(alpha: 0.15),
+                                      borderRadius:
+                                          BorderRadius.circular(14),
+                                    ),
+                                    child: Text(m.content,
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13)),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                  ),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () =>
+                          setState(() => _showMessages = !_showMessages),
+                      child: Icon(
+                        _showMessages
+                            ? Icons.chat_bubble_rounded
+                            : Icons.chat_bubble_outline_rounded,
+                        color: Colors.white70,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _msgController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Say something…',
+                          hintStyle:
+                              const TextStyle(color: Colors.white38),
+                          filled: true,
+                          fillColor:
+                              Colors.white.withValues(alpha: 0.12),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onSubmitted: (_) => _sendMessage(currentUserId),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _sendingMsg
+                          ? null
+                          : () => _sendMessage(currentUserId),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          shape: BoxShape.circle,
+                        ),
+                        child: _sendingMsg
+                            ? const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation(
+                                        Colors.white)),
+                              )
+                            : const Icon(Icons.send_rounded,
+                                color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -145,8 +375,11 @@ class _PhotoDetailContent extends StatelessWidget {
 }
 
 class _ReactionButton extends StatefulWidget {
-  final String emoji;
-  const _ReactionButton({required this.emoji});
+  final ReactionType type;
+  final bool isActive;
+  final VoidCallback onTap;
+  const _ReactionButton(
+      {required this.type, required this.isActive, required this.onTap});
 
   @override
   State<_ReactionButton> createState() => _ReactionButtonState();
@@ -175,6 +408,7 @@ class _ReactionButtonState extends State<_ReactionButton>
 
   void _tap() {
     _ctrl.forward().then((_) => _ctrl.reverse());
+    widget.onTap();
   }
 
   @override
@@ -183,14 +417,21 @@ class _ReactionButtonState extends State<_ReactionButton>
       onTap: _tap,
       child: ScaleTransition(
         scale: _scale,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           margin: const EdgeInsets.symmetric(horizontal: 6),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
+            color: widget.isActive
+                ? AppColors.primary.withValues(alpha: 0.5)
+                : Colors.white.withValues(alpha: 0.15),
             shape: BoxShape.circle,
+            border: widget.isActive
+                ? Border.all(color: AppColors.primary, width: 2)
+                : null,
           ),
-          child: Text(widget.emoji, style: const TextStyle(fontSize: 22)),
+          child:
+              Text(widget.type.emoji, style: const TextStyle(fontSize: 22)),
         ),
       ),
     );
@@ -208,3 +449,4 @@ final _photoSenderProvider =
     FutureProvider.family<UserModel?, String>((ref, userId) async {
   return ref.watch(firestoreServiceProvider).getUser(userId);
 });
+

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:iconsax/iconsax.dart';
@@ -21,8 +22,7 @@ class PhotoDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final photoAsync =
-        ref.watch(_photoDetailProvider(photoId));
+    final photoAsync = ref.watch(_photoDetailProvider(photoId));
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -31,8 +31,7 @@ class PhotoDetailScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Iconsax.arrow_left,
-              color: Colors.white),
+          icon: const Icon(Iconsax.arrow_left, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -70,7 +69,6 @@ class _PhotoDetailContent extends ConsumerStatefulWidget {
 class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
   final _msgController = TextEditingController();
   bool _sendingMsg = false;
-  bool _showMessages = false;
 
   @override
   void dispose() {
@@ -78,19 +76,71 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
     super.dispose();
   }
 
+  /// Resolves (or creates) a conversation with the photo sender, then sends
+  /// a text message into that conversation.
   Future<void> _sendMessage(String currentUserId) async {
     final text = _msgController.text.trim();
     if (text.isEmpty) return;
+
+    // Don't message yourself (sender is the same user)
+    final otherId = widget.photo.senderId;
+    if (otherId.isEmpty || otherId == currentUserId) return;
+
     setState(() => _sendingMsg = true);
     try {
-      await ref.read(firestoreServiceProvider).addMessage(
-            photoId: widget.photo.id,
-            senderId: currentUserId,
-            content: text,
-          );
+      final fs = ref.read(firestoreServiceProvider);
+      final convId =
+          await fs.getOrCreateConversation(currentUserId, otherId);
+      await fs.sendTextMessage(
+        conversationId: convId,
+        senderId: currentUserId,
+        content: text,
+      );
       _msgController.clear();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _sendingMsg = false);
+    }
+  }
+
+  /// Handles a reaction tap: upsert/remove the reaction in Firestore, and
+  /// – on a new reaction – also write a reaction-message to the conversation.
+  Future<void> _handleReaction({
+    required String currentUserId,
+    required ReactionType type,
+    required bool isActive,
+  }) async {
+    final fs = ref.read(firestoreServiceProvider);
+    if (isActive) {
+      await fs.removeReaction(
+          photoId: widget.photo.id, userId: currentUserId);
+    } else {
+      await fs.upsertReaction(
+          photoId: widget.photo.id,
+          userId: currentUserId,
+          type: type);
+
+      // Create/update conversation and add reaction message.
+      final otherId = widget.photo.senderId;
+      if (otherId.isNotEmpty && otherId != currentUserId) {
+        try {
+          final convId =
+              await fs.getOrCreateConversation(currentUserId, otherId);
+          await fs.sendReactionMessage(
+            conversationId: convId,
+            senderId: currentUserId,
+            reactionEmoji: type.emoji,
+            photoId: widget.photo.id,
+          );
+        } catch (_) {
+          // Reaction was saved – conversation failure is non-fatal.
+        }
+      }
     }
   }
 
@@ -98,32 +148,28 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider).value;
     final currentUserId = currentUser?.id ?? '';
-    final senderAsync = ref.watch(_photoSenderProvider(widget.photo.senderId));
-    final reactionsAsync =
-        ref.watch(reactionsProvider(widget.photo.id));
+    final senderAsync =
+        ref.watch(_photoSenderProvider(widget.photo.senderId));
+    final reactionsAsync = ref.watch(reactionsProvider(widget.photo.id));
     final myReaction =
         ref.watch(myReactionProvider((widget.photo.id, currentUserId)));
-    final messagesAsync =
-        ref.watch(messagesProvider(widget.photo.id));
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Zoomable image
+        // ── Zoomable image ────────────────────────────────────────────────────
         PhotoView(
-          imageProvider:
-              CachedNetworkImageProvider(widget.photo.imageUrl),
+          imageProvider: CachedNetworkImageProvider(widget.photo.imageUrl),
           minScale: PhotoViewComputedScale.contained,
           maxScale: PhotoViewComputedScale.covered * 2.5,
-          backgroundDecoration:
-              const BoxDecoration(color: Colors.black),
+          backgroundDecoration: const BoxDecoration(color: Colors.black),
           loadingBuilder: (_, __) => const Center(
             child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation(AppColors.primary)),
           ),
         ),
 
-        // Sender info overlay
+        // ── Sender info overlay ───────────────────────────────────────────────
         Positioned(
           bottom: 0,
           left: 0,
@@ -136,11 +182,26 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
             child: senderAsync.when(
               data: (sender) => Row(
                 children: [
-                  UserAvatar(
-                    avatarUrl: sender?.avatarUrl,
-                    username: sender?.displayUsername ?? '?',
-                    size: 48,
-                    showBorder: true,
+                  // Tapping the avatar opens the conversation
+                  GestureDetector(
+                    onTap: currentUserId.isNotEmpty &&
+                            widget.photo.senderId != currentUserId
+                        ? () async {
+                            final fs = ref.read(firestoreServiceProvider);
+                            final convId =
+                                await fs.getOrCreateConversation(
+                                    currentUserId, widget.photo.senderId);
+                            if (context.mounted) {
+                              context.push('/conversation/$convId');
+                            }
+                          }
+                        : null,
+                    child: UserAvatar(
+                      avatarUrl: sender?.avatarUrl,
+                      username: sender?.displayUsername ?? '?',
+                      size: 48,
+                      showBorder: true,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -170,7 +231,7 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
           ),
         ),
 
-        // Reaction summary
+        // ── Reaction summary ──────────────────────────────────────────────────
         Positioned(
           bottom: 160,
           left: 16,
@@ -205,7 +266,7 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
           ),
         ),
 
-        // Reaction row
+        // ── Reaction row ──────────────────────────────────────────────────────
         Positioned(
           bottom: 108,
           left: 0,
@@ -217,25 +278,17 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
               return _ReactionButton(
                 type: type,
                 isActive: isActive,
-                onTap: () async {
-                  final fs = ref.read(firestoreServiceProvider);
-                  if (isActive) {
-                    await fs.removeReaction(
-                        photoId: widget.photo.id,
-                        userId: currentUserId);
-                  } else {
-                    await fs.upsertReaction(
-                        photoId: widget.photo.id,
-                        userId: currentUserId,
-                        type: type);
-                  }
-                },
+                onTap: () => _handleReaction(
+                  currentUserId: currentUserId,
+                  type: type,
+                  isActive: isActive,
+                ),
               );
             }).toList(),
           ),
         ),
 
-        // Message panel
+        // ── Message input bar ─────────────────────────────────────────────────
         Positioned(
           bottom: 0,
           left: 0,
@@ -252,119 +305,54 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
                 end: Alignment.bottomCenter,
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
               children: [
-                if (_showMessages)
-                  messagesAsync.when(
-                    data: (msgs) => msgs.isEmpty
-                        ? Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text('No messages yet',
-                                style: AppTextStyles.bodySmall
-                                    .copyWith(color: Colors.white54)),
-                          )
-                        : Container(
-                            constraints:
-                                const BoxConstraints(maxHeight: 140),
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListView.builder(
-                              shrinkWrap: true,
-                              reverse: true,
-                              itemCount: msgs.length,
-                              itemBuilder: (_, i) {
-                                final m = msgs[msgs.length - 1 - i];
-                                final isMe = m.senderId == currentUserId;
-                                return Align(
-                                  alignment: isMe
-                                      ? Alignment.centerRight
-                                      : Alignment.centerLeft,
-                                  child: Container(
-                                    margin:
-                                        const EdgeInsets.only(bottom: 4),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 7),
-                                    decoration: BoxDecoration(
-                                      color: isMe
-                                          ? AppColors.primary
-                                              .withValues(alpha: 0.85)
-                                          : Colors.white
-                                              .withValues(alpha: 0.15),
-                                      borderRadius:
-                                          BorderRadius.circular(14),
-                                    ),
-                                    child: Text(m.content,
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13)),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
+                // ── Text input ──────────────────────────────────────
+                Expanded(
+                  child: TextField(
+                    controller: _msgController,
+                    style: const TextStyle(color: Colors.white),
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendMessage(currentUserId),
+                    decoration: InputDecoration(
+                      hintText: 'Say something…',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.12),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () =>
-                          setState(() => _showMessages = !_showMessages),
-                      child: Icon(
-                        _showMessages
-                            ? Iconsax.message5
-                            : Iconsax.message,
-                        color: Colors.white70,
-                        size: 22,
-                      ),
+                ),
+                const SizedBox(width: 8),
+
+                // ── Send button ─────────────────────────────────────
+                GestureDetector(
+                  onTap: _sendingMsg
+                      ? null
+                      : () => _sendMessage(currentUserId),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      gradient: AppColors.primaryGradient,
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _msgController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Say something…',
-                          hintStyle:
-                              const TextStyle(color: Colors.white38),
-                          filled: true,
-                          fillColor:
-                              Colors.white.withValues(alpha: 0.12),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        onSubmitted: (_) => _sendMessage(currentUserId),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: _sendingMsg
-                          ? null
-                          : () => _sendMessage(currentUserId),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: const BoxDecoration(
-                          gradient: AppColors.primaryGradient,
-                          shape: BoxShape.circle,
-                        ),
-                        child: _sendingMsg
-                            ? const Padding(
-                                padding: EdgeInsets.all(10),
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation(
-                                        Colors.white)),
-                              )
-                            : const Icon(Iconsax.send_1,
-                                color: Colors.white, size: 18),
-                      ),
-                    ),
-                  ],
+                    child: _sendingMsg
+                        ? const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(
+                                    Colors.white)),
+                          )
+                        : const Icon(Iconsax.send_1,
+                            color: Colors.white, size: 20),
+                  ),
                 ),
               ],
             ),
@@ -374,6 +362,8 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
     );
   }
 }
+
+// ─── Reaction button widget ───────────────────────────────────────────────────
 
 class _ReactionButton extends StatefulWidget {
   final ReactionType type;
@@ -439,7 +429,7 @@ class _ReactionButtonState extends State<_ReactionButton>
   }
 }
 
-// ─── Providers ────────────────────────────────────────────────────────────────
+// ─── Local providers ──────────────────────────────────────────────────────────
 
 final _photoDetailProvider =
     FutureProvider.family<PhotoModel?, String>((ref, photoId) async {
@@ -450,4 +440,3 @@ final _photoSenderProvider =
     FutureProvider.family<UserModel?, String>((ref, userId) async {
   return ref.watch(firestoreServiceProvider).getUser(userId);
 });
-

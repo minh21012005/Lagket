@@ -1,26 +1,44 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Type of message stored in a conversation.
+enum MessageType {
+  text,
+  reaction;
+
+  static MessageType fromString(String v) =>
+      MessageType.values.firstWhere((e) => e.name == v,
+          orElse: () => MessageType.text);
+}
+
 class MessageModel {
   final String id;
-  final String photoId;
+  final String conversationId;
   final String senderId;
   final String content;
+  final MessageType type;
+
+  /// Nullable – only set for reaction messages.
+  final String? photoId;
   final DateTime? createdAt;
 
   const MessageModel({
     required this.id,
-    required this.photoId,
+    required this.conversationId,
     required this.senderId,
     required this.content,
+    this.type = MessageType.text,
+    this.photoId,
     this.createdAt,
   });
 
   factory MessageModel.fromMap(Map<String, dynamic> map, String id) {
     return MessageModel(
       id: id,
-      photoId: map['photoId'] as String? ?? '',
+      conversationId: map['conversationId'] as String? ?? '',
       senderId: map['senderId'] as String? ?? '',
       content: map['content'] as String? ?? '',
+      type: MessageType.fromString(map['type'] as String? ?? 'text'),
+      photoId: map['photoId'] as String?,
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
           : null,
@@ -28,9 +46,11 @@ class MessageModel {
   }
 
   Map<String, dynamic> toMap() => {
-        'photoId': photoId,
+        'conversationId': conversationId,
         'senderId': senderId,
         'content': content,
+        'type': type.name,
+        if (photoId != null) 'photoId': photoId,
         'createdAt': FieldValue.serverTimestamp(),
       };
 }

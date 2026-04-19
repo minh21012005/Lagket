@@ -69,8 +69,9 @@ class CameraNotifier extends StateNotifier<CameraState> {
     await controller?.dispose();
     controller = CameraController(
       description,
-      ResolutionPreset.high,
+      ResolutionPreset.medium,
       enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.jpeg,
     );
 
     try {

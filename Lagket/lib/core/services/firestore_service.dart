@@ -4,6 +4,7 @@ import '../../shared/models/user_model.dart';
 import '../../shared/models/photo_model.dart';
 import '../../shared/models/reaction_model.dart';
 import '../../shared/models/message_model.dart';
+import '../../shared/models/conversation_model.dart';
 import '../../shared/models/friend_request_model.dart';
 import '../../shared/models/friendship_model.dart';
 import '../constants/app_constants.dart';
@@ -334,9 +335,9 @@ class FirestoreService {
             snap.docs.map((d) => ReactionModel.fromMap(d.data(), d.id)).toList());
   }
 
-  // ─── Messages ─────────────────────────────────────────────────────────────────
+  // ─── Messages (legacy – kept for backward compat) ────────────────────────────
 
-  /// Add a message to a photo.
+  /// Add a message to a photo (legacy – prefer sendTextMessage).
   Future<void> addMessage({
     required String photoId,
     required String senderId,
@@ -352,7 +353,7 @@ class FirestoreService {
     });
   }
 
-  /// Real-time stream of messages for a photo, oldest first.
+  /// Real-time stream of messages for a photo (legacy), oldest first.
   Stream<List<MessageModel>> watchMessages(String photoId) {
     return _db
         .collection(AppConstants.messagesCollection)
@@ -362,4 +363,116 @@ class FirestoreService {
         .map((snap) =>
             snap.docs.map((d) => MessageModel.fromMap(d.data(), d.id)).toList());
   }
+
+  // ─── Conversations ────────────────────────────────────────────────────────────
+
+  /// Returns the existing conversation id between [userA] and [userB], or
+  /// creates a new one and returns its id. Safe to call concurrently because
+  /// Firestore transactions are atomic.
+  Future<String> getOrCreateConversation(String userA, String userB) async {
+    final participants = [userA, userB]..sort();
+
+    // Query for an existing conversation involving both participants.
+    final snap = await _db
+        .collection(AppConstants.conversationsCollection)
+        .where('participants', isEqualTo: participants)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isNotEmpty) {
+      return snap.docs.first.id;
+    }
+
+    // Create a new conversation document.
+    final doc = _db.collection(AppConstants.conversationsCollection).doc();
+    await doc.set({
+      'participants': participants,
+      'lastMessage': '',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    return doc.id;
+  }
+
+  /// Real-time stream of all conversations for [userId], newest first.
+  Stream<List<ConversationModel>> watchConversations(String userId) {
+    return _db
+        .collection(AppConstants.conversationsCollection)
+        .where('participants', arrayContains: userId)
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => ConversationModel.fromMap(d.data(), d.id))
+            .toList());
+  }
+
+  /// Real-time stream of messages in [conversationId], oldest first.
+  Stream<List<MessageModel>> watchConversationMessages(String conversationId) {
+    return _db
+        .collection(AppConstants.messagesCollection)
+        .where('conversationId', isEqualTo: conversationId)
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => MessageModel.fromMap(d.data(), d.id)).toList());
+  }
+
+  /// Send a text message and update the conversation's lastMessage / updatedAt.
+  Future<void> sendTextMessage({
+    required String conversationId,
+    required String senderId,
+    required String content,
+  }) async {
+    final batch = _db.batch();
+
+    final msgDoc = _db.collection(AppConstants.messagesCollection).doc();
+    batch.set(msgDoc, {
+      'conversationId': conversationId,
+      'senderId': senderId,
+      'content': content,
+      'type': 'text',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    final convRef = _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId);
+    batch.update(convRef, {
+      'lastMessage': content,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+  }
+
+  /// Send a reaction message (linked to a photo) and update the conversation.
+  Future<void> sendReactionMessage({
+    required String conversationId,
+    required String senderId,
+    required String reactionEmoji,
+    required String photoId,
+  }) async {
+    final preview = 'Reacted $reactionEmoji to a photo';
+    final batch = _db.batch();
+
+    final msgDoc = _db.collection(AppConstants.messagesCollection).doc();
+    batch.set(msgDoc, {
+      'conversationId': conversationId,
+      'senderId': senderId,
+      'content': reactionEmoji,
+      'type': 'reaction',
+      'photoId': photoId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    final convRef = _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId);
+    batch.update(convRef, {
+      'lastMessage': preview,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+  }
 }
+

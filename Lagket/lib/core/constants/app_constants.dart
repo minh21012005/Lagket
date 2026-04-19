@@ -12,6 +12,7 @@ class AppConstants {
   static const String friendRequestsCollection = 'friend_requests';
   static const String reactionsCollection = 'reactions';
   static const String messagesCollection = 'messages';
+  static const String conversationsCollection = 'conversations';
 
   // Storage paths
   static const String avatarsPath = 'avatars';

@@ -20,6 +20,7 @@ import '../features/friend/screens/add_friend_screen.dart';
 import '../features/friend/screens/friend_requests_screen.dart';
 import '../features/friend/screens/friends_list_screen.dart';
 import '../features/messaging/screens/message_list_screen.dart';
+import '../features/messaging/screens/conversation_detail_screen.dart';
 import '../features/notification/screens/notification_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/profile/screens/edit_profile_screen.dart';
@@ -148,6 +149,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/widget',
         builder: (_, __) => const WidgetPreviewScreen(),
+      ),
+
+      // ─── Conversation detail ─────────────────────────────────────────────────
+      GoRoute(
+        path: '/conversation/:id',
+        builder: (_, state) => ConversationDetailScreen(
+          conversationId: state.pathParameters['id']!,
+        ),
       ),
 
       // ─── Friends ────────────────────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -67,7 +68,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
@@ -101,7 +102,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline,
+                        const Icon(Iconsax.info_circle,
                             color: AppColors.error, size: 18),
                         const SizedBox(width: 10),
                         Expanded(
@@ -122,7 +123,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   hint: 'e.g. john_doe',
                   controller: _usernameController,
                   validator: Validators.validateUsername,
-                  prefixIcon: Icons.alternate_email_rounded,
+                  prefixIcon: Iconsax.sms,
                   maxLength: 20,
                 ),
                 const SizedBox(height: 16),
@@ -132,7 +133,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   controller: _emailController,
                   validator: Validators.validateEmail,
                   keyboardType: TextInputType.emailAddress,
-                  prefixIcon: Icons.email_outlined,
+                  prefixIcon: Iconsax.sms,
                 ),
                 const SizedBox(height: 16),
                 AppTextField(
@@ -159,7 +160,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   label: 'Create Account',
                   onPressed: _signUp,
                   isLoading: authState.isLoading,
-                  icon: Icons.person_add_rounded,
+                  icon: Iconsax.user_add,
                 ),
 
                 const SizedBox(height: 24),

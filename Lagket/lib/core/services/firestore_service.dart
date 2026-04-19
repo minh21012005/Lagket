@@ -274,6 +274,22 @@ class FirestoreService {
     return merged;
   }
 
+  /// Stream of photos sent by a user in a given year (for calendar view).
+  /// Requires a composite Firestore index: senderId ASC + createdAt ASC.
+  Stream<List<PhotoModel>> watchSentPhotosForYear(String userId, int year) {
+    final start = Timestamp.fromDate(DateTime(year));
+    final end = Timestamp.fromDate(DateTime(year + 1));
+    return _db
+        .collection(AppConstants.photosCollection)
+        .where('senderId', isEqualTo: userId)
+        .where('createdAt', isGreaterThanOrEqualTo: start)
+        .where('createdAt', isLessThan: end)
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((s) =>
+            s.docs.map((d) => PhotoModel.fromMap(d.data(), d.id)).toList());
+  }
+
   /// Count of photos sent by this user (for profile stats).
   Future<int> getSentPhotoCount(String userId) async {
     final snap = await _db

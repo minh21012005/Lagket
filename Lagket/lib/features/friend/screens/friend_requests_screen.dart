@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,7 +25,7 @@ class FriendRequestsScreen extends ConsumerWidget {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
@@ -97,7 +98,7 @@ class _RequestTile extends ConsumerWidget {
                           onPressed: () => ref
                               .read(friendNotifierProvider.notifier)
                               .acceptRequest(request),
-                          icon: Icons.check_rounded,
+                          icon: Iconsax.tick_square,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -111,7 +112,7 @@ class _RequestTile extends ConsumerWidget {
                           onPressed: () => ref
                               .read(friendNotifierProvider.notifier)
                               .rejectRequest(request),
-                          icon: Icons.close_rounded,
+                          icon: Iconsax.close_circle,
                         ),
                       ),
                     ],
@@ -148,7 +149,7 @@ class _Empty extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.people_outline_rounded,
+          const Icon(Iconsax.people,
               color: AppColors.textHint, size: 64),
           const SizedBox(height: 16),
           Text('No pending requests',

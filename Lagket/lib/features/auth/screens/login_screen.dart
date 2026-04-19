@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -61,7 +62,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       gradient: AppColors.primaryGradient,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Icon(Icons.camera_alt_rounded,
+                    child: const Icon(Iconsax.camera,
                         color: Colors.white, size: 36),
                   ),
                 ),
@@ -88,7 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline,
+                        const Icon(Iconsax.info_circle,
                             color: AppColors.error, size: 18),
                         const SizedBox(width: 10),
                         Expanded(
@@ -110,7 +111,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   controller: _emailController,
                   validator: Validators.validateEmail,
                   keyboardType: TextInputType.emailAddress,
-                  prefixIcon: Icons.email_outlined,
+                  prefixIcon: Iconsax.sms,
                 ),
                 const SizedBox(height: 16),
                 AppTextField(

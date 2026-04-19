@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -84,7 +85,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ],
                     ),
                     child: const Icon(
-                      Icons.camera_alt_rounded,
+                      Iconsax.camera,
                       color: Colors.white,
                       size: 48,
                     ),

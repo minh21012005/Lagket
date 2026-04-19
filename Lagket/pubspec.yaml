@@ -24,6 +24,9 @@ dependencies:
   # State management
   flutter_riverpod: ^2.5.1
 
+  # Icons
+  iconsax: ^0.0.8
+
   # Navigation
   go_router: ^14.2.7
 

@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -65,7 +66,7 @@ class WidgetPreviewScreen extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline,
+                      const Icon(Iconsax.info_circle,
                           color: AppColors.textSecondary, size: 20),
                       const SizedBox(width: 10),
                       Expanded(
@@ -148,7 +149,7 @@ class _WidgetFrame extends ConsumerWidget {
                 Container(
                   color: AppColors.surfaceElevated,
                   child: const Center(
-                    child: Icon(Icons.camera_alt_rounded,
+                    child: Icon(Iconsax.camera,
                         color: AppColors.textHint, size: 36),
                   ),
                 ),

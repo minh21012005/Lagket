@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -77,7 +78,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.shield_rounded,
+                child: const Icon(Iconsax.shield_tick,
                     color: Colors.white, size: 40),
               ),
               const SizedBox(height: 28),
@@ -93,14 +94,14 @@ class _PermissionScreenState extends State<PermissionScreen> {
               const SizedBox(height: 40),
 
               _PermissionTile(
-                icon: Icons.camera_alt_rounded,
+                icon: Iconsax.camera,
                 title: 'Camera',
                 description: 'To capture and share photos with friends.',
                 isGranted: _cameraGranted,
               ),
               const SizedBox(height: 16),
               _PermissionTile(
-                icon: Icons.notifications_rounded,
+                icon: Iconsax.notification,
                 title: 'Notifications',
                 description: "So you're notified when a friend sends you a photo.",
                 isGranted: _notifGranted,
@@ -113,7 +114,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
                   label: 'Allow Permissions',
                   onPressed: _requestAll,
                   isLoading: _isLoading,
-                  icon: Icons.lock_open_rounded,
+                  icon: Iconsax.unlock,
                 ),
                 const SizedBox(height: 12),
               ],
@@ -187,7 +188,7 @@ class _PermissionTile extends StatelessWidget {
             ),
           ),
           if (isGranted)
-            const Icon(Icons.check_circle_rounded,
+            const Icon(Iconsax.tick_circle,
                 color: AppColors.success, size: 22),
         ],
       ),

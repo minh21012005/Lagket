@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iconsax/iconsax.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/screens/splash_screen.dart';
 import '../features/auth/screens/login_screen.dart';
@@ -10,6 +11,7 @@ import '../features/permission/screens/permission_screen.dart';
 import '../features/camera/screens/camera_screen.dart';
 import '../features/camera/screens/preview_screen.dart';
 import '../features/camera/screens/send_screen.dart';
+import '../features/calendar/screens/calendar_screen.dart';
 import '../features/feed/screens/feed_screen.dart';
 import '../features/feed/screens/history_screen.dart';
 import '../features/feed/screens/photo_detail_screen.dart';
@@ -17,12 +19,15 @@ import '../features/feed/screens/widget_preview_screen.dart';
 import '../features/friend/screens/add_friend_screen.dart';
 import '../features/friend/screens/friend_requests_screen.dart';
 import '../features/friend/screens/friends_list_screen.dart';
+import '../features/messaging/screens/message_list_screen.dart';
 import '../features/notification/screens/notification_screen.dart';
 import '../features/profile/screens/profile_screen.dart';
 import '../features/profile/screens/edit_profile_screen.dart';
 import '../features/profile/screens/settings_screen.dart';
+import '../shared/widgets/app_shell.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
+final _shellKey = GlobalKey<NavigatorState>();
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -75,11 +80,44 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const PermissionScreen(),
       ),
 
-      // ─── Camera ─────────────────────────────────────────────────────────────
-      GoRoute(
-        path: '/camera',
-        builder: (_, __) => const CameraScreen(),
+      // ─── Persistent shell (Camera / Calendar / Messages) ────────────────────
+      StatefulShellRoute.indexedStack(
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state, shell) => AppShell(navigationShell: shell),
+        branches: [
+          // ── Tab 0: Calendar ──────────────────────────────────────────────
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/calendar',
+                builder: (_, __) => const CalendarScreen(),
+              ),
+            ],
+          ),
+
+          // ── Tab 1: Camera (default / home) ───────────────────────────────
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/camera',
+                builder: (_, __) => const CameraScreen(),
+              ),
+            ],
+          ),
+
+          // ── Tab 2: Messages ──────────────────────────────────────────────
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/messages',
+                builder: (_, __) => const MessageListScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
+
+      // ─── Camera sub-screens (outside shell) ─────────────────────────────────
       GoRoute(
         path: '/preview',
         builder: (_, __) => const PreviewScreen(),
@@ -149,7 +187,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline,
+            const Icon(Iconsax.info_circle,
                 color: Color(0xFFEF476F), size: 56),
             const SizedBox(height: 16),
             Text('Page not found',
@@ -216,7 +254,7 @@ class _ForgotPasswordScreenState extends ConsumerState<_ForgotPasswordScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: Colors.white),
           onPressed: () => context.pop(),
         ),
@@ -231,7 +269,7 @@ class _ForgotPasswordScreenState extends ConsumerState<_ForgotPasswordScreen> {
         child: Column(
           children: [
             if (!_sent) ...[
-              const Icon(Icons.lock_reset_rounded,
+              const Icon(Iconsax.password_check,
                   color: Color(0xFFFF6B35), size: 60),
               const SizedBox(height: 24),
               const Text(
@@ -275,7 +313,7 @@ class _ForgotPasswordScreenState extends ConsumerState<_ForgotPasswordScreen> {
                 ),
               ),
             ] else ...[
-              const Icon(Icons.check_circle_rounded,
+              const Icon(Iconsax.tick_circle,
                   color: Color(0xFF06D6A0), size: 64),
               const SizedBox(height: 20),
               const Text('Email sent!',

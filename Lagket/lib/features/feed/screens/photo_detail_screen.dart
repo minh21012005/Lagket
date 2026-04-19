@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:iconsax/iconsax.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/reaction_provider.dart';
 import '../providers/message_provider.dart';
@@ -30,7 +31,7 @@ class PhotoDetailScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -311,8 +312,8 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
                           setState(() => _showMessages = !_showMessages),
                       child: Icon(
                         _showMessages
-                            ? Icons.chat_bubble_rounded
-                            : Icons.chat_bubble_outline_rounded,
+                            ? Iconsax.message5
+                            : Iconsax.message,
                         color: Colors.white70,
                         size: 22,
                       ),
@@ -359,7 +360,7 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
                                     valueColor: AlwaysStoppedAnimation(
                                         Colors.white)),
                               )
-                            : const Icon(Icons.send_rounded,
+                            : const Icon(Iconsax.send_1,
                                 color: Colors.white, size: 18),
                       ),
                     ),

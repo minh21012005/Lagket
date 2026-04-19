@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:camera/camera.dart';
+import 'package:iconsax/iconsax.dart';
 import 'dart:io';
 import '../providers/camera_provider.dart';
 import '../../../core/constants/app_colors.dart';
@@ -57,13 +58,13 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   IconData _flashIcon(FlashMode mode) {
     switch (mode) {
       case FlashMode.off:
-        return Icons.flash_off_rounded;
+        return Iconsax.flash_slash;
       case FlashMode.auto:
-        return Icons.flash_auto_rounded;
+        return Iconsax.flash;
       case FlashMode.always:
-        return Icons.flash_on_rounded;
+        return Iconsax.flash_1;
       default:
-        return Icons.flash_off_rounded;
+        return Iconsax.flash_slash;
     }
   }
 
@@ -83,7 +84,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           // Flash toggle
           IconButton(
             icon: Icon(_flashIcon(camState.flashMode),
-                color: Colors.white, size: 26),
+                color: Colors.white, size: 22),
             onPressed: camState.isInitialized
                 ? () => ref
                     .read(cameraNotifierProvider.notifier)
@@ -92,7 +93,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
           ),
           // Profile (top-right)
           IconButton(
-            icon: const Icon(Icons.person_rounded, color: Colors.white),
+            icon: const Icon(Iconsax.user, color: Colors.white, size: 22),
             onPressed: () => context.push('/profile'),
           ),
         ],
@@ -122,7 +123,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.camera_alt_rounded,
+                      const Icon(Iconsax.camera_slash,
                           color: AppColors.textHint, size: 60),
                       const SizedBox(height: 16),
                       Text(
@@ -212,8 +213,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                                       .toggleCamera(cameras);
                                 }
                               : null,
-                          icon: const Icon(Icons.flip_camera_ios_rounded,
-                              color: Colors.white, size: 28),
+                          icon: const Icon(Iconsax.rotate_left_1,
+                              color: Colors.white, size: 26),
                         ),
                       ],
                     ),
@@ -225,8 +226,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.photo_library_outlined,
-                              color: Colors.white54, size: 16),
+                          const Icon(Iconsax.clock,
+                              color: Colors.white54, size: 15),
                           const SizedBox(width: 6),
                           Text(
                             'History',

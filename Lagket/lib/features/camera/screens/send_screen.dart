@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -98,7 +99,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
@@ -182,7 +183,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
               label: 'Send Photo 🚀',
               onPressed: _send,
               isLoading: _isSending,
-              icon: Icons.send_rounded,
+              icon: Iconsax.send_1,
             ),
           ),
         ],
@@ -265,7 +266,7 @@ class _FriendSelectTile extends StatelessWidget {
               ),
             ),
             if (selected)
-              const Icon(Icons.check_circle_rounded,
+              const Icon(Iconsax.tick_circle,
                   color: AppColors.primary),
           ],
         ),

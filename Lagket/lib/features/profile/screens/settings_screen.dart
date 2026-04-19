@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -61,7 +62,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
@@ -73,12 +74,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // Account section
           _SectionHeader(title: 'Account'),
           _InfoTile(
-            icon: Icons.person_rounded,
+            icon: Iconsax.user,
             label: 'Username',
             value: '@${user?.username ?? '—'}',
           ),
           _InfoTile(
-            icon: Icons.email_outlined,
+            icon: Iconsax.sms,
             label: 'Email',
             value: user?.email ?? '—',
           ),
@@ -87,13 +88,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SectionHeader(title: 'Notifications'),
 
           _SwitchTile(
-            icon: Icons.notifications_rounded,
+            icon: Iconsax.notification,
             label: 'All notifications',
             value: _notifications,
             onChanged: (v) => setState(() => _notifications = v),
           ),
           _SwitchTile(
-            icon: Icons.photo_camera_rounded,
+            icon: Iconsax.camera,
             label: 'New photo received',
             value: _photoNotifications,
             onChanged: _notifications
@@ -101,7 +102,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 : null,
           ),
           _SwitchTile(
-            icon: Icons.person_add_rounded,
+            icon: Iconsax.user_add,
             label: 'Friend requests',
             value: _requestNotifications,
             onChanged: _notifications
@@ -112,12 +113,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 16),
           _SectionHeader(title: 'Privacy'),
           _NavTile(
-            icon: Icons.shield_rounded,
+            icon: Iconsax.shield_tick,
             label: 'Privacy Policy',
             onTap: () {},
           ),
           _NavTile(
-            icon: Icons.description_rounded,
+            icon: Iconsax.document_text,
             label: 'Terms of Service',
             onTap: () {},
           ),
@@ -125,7 +126,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 16),
           _SectionHeader(title: 'App'),
           _InfoTile(
-            icon: Icons.info_outline,
+            icon: Iconsax.info_circle,
             label: 'Version',
             value: '1.0.0',
           ),
@@ -144,7 +145,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.logout_rounded,
+                  const Icon(Iconsax.logout,
                       color: AppColors.error, size: 22),
                   const SizedBox(width: 12),
                   Text('Log out',
@@ -232,7 +233,7 @@ class _NavTile extends StatelessWidget {
             Icon(icon, color: AppColors.textSecondary, size: 20),
             const SizedBox(width: 14),
             Expanded(child: Text(label, style: AppTextStyles.bodyLarge)),
-            const Icon(Icons.chevron_right_rounded,
+            const Icon(Iconsax.arrow_right_3,
                 color: AppColors.textSecondary),
           ],
         ),

@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,7 +40,7 @@ class _AddFriendScreenState extends ConsumerState<AddFriendScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
@@ -66,7 +67,7 @@ class _AddFriendScreenState extends ConsumerState<AddFriendScreen> {
                 hintText: 'Search by username...',
                 hintStyle: AppTextStyles.bodyMedium
                     .copyWith(color: AppColors.textHint),
-                prefixIcon: const Icon(Icons.search_rounded,
+                prefixIcon: const Icon(Iconsax.search_normal,
                     color: AppColors.textSecondary),
                 suffixIcon: query.isNotEmpty
                     ? IconButton(
@@ -188,7 +189,7 @@ class _UserSearchTileState extends ConsumerState<_UserSearchTile> {
             ),
           ),
           _sent
-              ? const Icon(Icons.check_circle_rounded,
+              ? const Icon(Iconsax.tick_circle,
                   color: AppColors.success, size: 24)
               : SizedBox(
                   height: 36,
@@ -230,7 +231,7 @@ class _InviteTile extends StatelessWidget {
           Text('Invite via link', style: AppTextStyles.bodyLarge),
       subtitle: Text('Share your invite link with friends',
           style: AppTextStyles.bodySmall),
-      trailing: const Icon(Icons.chevron_right_rounded,
+      trailing: const Icon(Iconsax.arrow_right_3,
           color: AppColors.textSecondary),
       onTap: () {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -249,7 +250,7 @@ class _SearchHint extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.search_rounded,
+          const Icon(Iconsax.search_normal,
               color: AppColors.textHint, size: 56),
           const SizedBox(height: 12),
           Text('Search for a username',

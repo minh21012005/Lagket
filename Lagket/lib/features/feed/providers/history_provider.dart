@@ -90,3 +90,33 @@ final historySenderProvider =
 final historyFriendListProvider = Provider<AsyncValue<List<UserModel>>>((ref) {
   return ref.watch(friendUsersProvider);
 });
+
+// ─── Calendar providers ───────────────────────────────────────────────────────
+
+/// All photos sent by the current user in the current year.
+final calendarPhotosProvider = StreamProvider<List<PhotoModel>>((ref) {
+  final user = ref.watch(currentUserProvider).value;
+  if (user == null) return Stream.value([]);
+  final year = DateTime.now().year;
+  return ref
+      .watch(firestoreServiceProvider)
+      .watchSentPhotosForYear(user.id, year);
+});
+
+/// Photos keyed by their normalized date [DateTime(y, m, d)] for O(1) lookup.
+/// When multiple photos exist on the same day, keeps the most recently created.
+final photosByDateProvider = Provider<Map<DateTime, PhotoModel>>((ref) {
+  final photos = ref.watch(calendarPhotosProvider).value ?? [];
+  final map = <DateTime, PhotoModel>{};
+  for (final photo in photos) {
+    if (photo.createdAt == null) continue;
+    final d = photo.createdAt!;
+    final key = DateTime(d.year, d.month, d.day);
+    // Keep the later photo if multiple on same day.
+    if (!map.containsKey(key) ||
+        photo.createdAt!.isAfter(map[key]!.createdAt!)) {
+      map[key] = photo;
+    }
+  }
+  return map;
+});

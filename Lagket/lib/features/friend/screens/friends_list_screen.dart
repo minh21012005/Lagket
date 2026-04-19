@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,14 +21,14 @@ class FriendsListScreen extends ConsumerWidget {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
         title: Text('Friends', style: AppTextStyles.headlineMedium),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add_rounded,
+            icon: const Icon(Iconsax.user_add,
                 color: AppColors.primary),
             onPressed: () => context.push('/friends/add'),
           ),
@@ -164,7 +165,7 @@ class _Empty extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.people_outline_rounded,
+          const Icon(Iconsax.people,
               color: AppColors.textHint, size: 64),
           const SizedBox(height: 16),
           Text('No friends yet', style: AppTextStyles.headlineMedium),
@@ -175,7 +176,7 @@ class _Empty extends StatelessWidget {
           const SizedBox(height: 20),
           TextButton.icon(
             onPressed: () => context.push('/friends/add'),
-            icon: const Icon(Icons.person_add_rounded,
+            icon: const Icon(Iconsax.user_add,
                 color: AppColors.primary),
             label: Text('Add friends',
                 style:

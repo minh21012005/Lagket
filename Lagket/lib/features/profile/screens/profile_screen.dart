@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,13 +39,13 @@ class ProfileScreen extends ConsumerWidget {
                 backgroundColor: AppColors.background,
                 elevation: 0,
                 leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                  icon: const Icon(Iconsax.arrow_left,
                       color: AppColors.textPrimary),
                   onPressed: () => context.pop(),
                 ),
                 actions: [
                   IconButton(
-                    icon: const Icon(Icons.settings_rounded,
+                    icon: const Icon(Iconsax.setting_2,
                         color: AppColors.textPrimary),
                     onPressed: () => context.push('/settings'),
                   ),
@@ -78,7 +79,7 @@ class ProfileScreen extends ConsumerWidget {
                                     color: AppColors.primary,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.edit_rounded,
+                                  child: const Icon(Iconsax.edit,
                                       size: 14, color: Colors.white),
                                 ),
                               ),
@@ -107,7 +108,7 @@ class ProfileScreen extends ConsumerWidget {
                           label: 'Friends',
                           value:
                               '${friendsAsync.value?.length ?? 0}',
-                          icon: Icons.people_rounded,
+                          icon: Iconsax.people,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -119,7 +120,7 @@ class ProfileScreen extends ConsumerWidget {
                                   .value
                                   ?.toString() ??
                               '—',
-                          icon: Icons.send_rounded,
+                          icon: Iconsax.send_1,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -129,7 +130,7 @@ class ProfileScreen extends ConsumerWidget {
                           value: user.createdAt != null
                               ? '${user.createdAt!.month}/${user.createdAt!.year}'
                               : '—',
-                          icon: Icons.calendar_month_rounded,
+                          icon: Iconsax.calendar_1,
                         ),
                       ),
                     ],
@@ -144,22 +145,22 @@ class ProfileScreen extends ConsumerWidget {
                   child: Column(
                     children: [
                       _ActionTile(
-                        icon: Icons.edit_rounded,
+                        icon: Iconsax.edit,
                         label: 'Edit Profile',
                         onTap: () => context.push('/profile/edit'),
                       ),
                       _ActionTile(
-                        icon: Icons.people_rounded,
+                        icon: Iconsax.people,
                         label: 'My Friends',
                         onTap: () => context.push('/friends'),
                       ),
                       _ActionTile(
-                        icon: Icons.widgets_rounded,
+                        icon: Iconsax.category,
                         label: 'Widget Preview',
                         onTap: () => context.push('/widget'),
                       ),
                       _ActionTile(
-                        icon: Icons.settings_rounded,
+                        icon: Iconsax.setting_2,
                         label: 'Settings',
                         onTap: () => context.push('/settings'),
                       ),
@@ -244,7 +245,7 @@ class _ActionTile extends StatelessWidget {
             Expanded(
               child: Text(label, style: AppTextStyles.bodyLarge),
             ),
-            const Icon(Icons.chevron_right_rounded,
+            const Icon(Iconsax.arrow_right_3,
                 color: AppColors.textSecondary),
           ],
         ),

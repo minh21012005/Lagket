@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,7 +27,7 @@ class PreviewScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+          icon: const Icon(Iconsax.close_circle, color: Colors.white, size: 28),
           onPressed: () {
             ref.read(capturedFileProvider.notifier).state = null;
             ref.read(cameraNotifierProvider.notifier).clearCapture();
@@ -88,7 +89,7 @@ class PreviewScreen extends ConsumerWidget {
                         child: AppButton(
                           label: 'Send',
                           onPressed: () => context.push('/send'),
-                          icon: Icons.send_rounded,
+                          icon: Iconsax.send_1,
                           borderRadius: 14,
                         ),
                       ),

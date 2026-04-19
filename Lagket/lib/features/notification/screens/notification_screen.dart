@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
@@ -9,28 +10,28 @@ class NotificationScreen extends StatelessWidget {
   // Mock notifications for demo
   static final List<_NotifItem> _mockItems = [
     _NotifItem(
-      icon: Icons.photo_camera_rounded,
+      icon: Iconsax.camera,
       iconColor: AppColors.primary,
       title: 'New photo from alex_dev',
       subtitle: 'Tap to view the photo',
       time: '2 min ago',
     ),
     _NotifItem(
-      icon: Icons.person_add_rounded,
+      icon: Iconsax.user_add,
       iconColor: AppColors.success,
       title: 'sarah_j accepted your friend request',
       subtitle: 'You are now friends!',
       time: '1 hr ago',
     ),
     _NotifItem(
-      icon: Icons.notifications_active_rounded,
+      icon: Iconsax.notification_bing,
       iconColor: AppColors.warning,
       title: 'Friend request from mike_w',
       subtitle: 'Accept or decline',
       time: '3 hr ago',
     ),
     _NotifItem(
-      icon: Icons.photo_camera_rounded,
+      icon: Iconsax.camera,
       iconColor: AppColors.primary,
       title: 'New photo from sarah_j',
       subtitle: 'Tap to view the photo',
@@ -46,7 +47,7 @@ class NotificationScreen extends StatelessWidget {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
@@ -128,7 +129,7 @@ class _Empty extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.notifications_none_rounded,
+          const Icon(Iconsax.notification,
               color: AppColors.textHint, size: 64),
           const SizedBox(height: 16),
           Text('No notifications', style: AppTextStyles.headlineMedium),

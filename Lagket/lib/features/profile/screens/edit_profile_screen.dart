@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -81,7 +82,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+          icon: const Icon(Iconsax.arrow_left,
               color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
@@ -118,7 +119,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           gradient: AppColors.primaryGradient,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.camera_alt_rounded,
+                        child: const Icon(Iconsax.camera,
                             size: 16, color: Colors.white),
                       ),
                     ),
@@ -151,7 +152,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 label: 'Username',
                 controller: _usernameCtrl,
                 validator: Validators.validateUsername,
-                prefixIcon: Icons.alternate_email_rounded,
+                prefixIcon: Iconsax.sms,
                 maxLength: 20,
               ),
 
@@ -167,7 +168,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 label: 'Save Changes',
                 onPressed: _save,
                 isLoading: profileState.isLoading,
-                icon: Icons.save_rounded,
+                icon: Iconsax.document_download,
               ),
             ],
           ),

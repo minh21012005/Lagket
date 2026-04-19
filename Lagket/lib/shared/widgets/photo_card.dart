@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
@@ -45,13 +46,13 @@ class PhotoCard extends StatelessWidget {
                     ),
                     errorWidget: (_, __, ___) => Container(
                       color: AppColors.surface,
-                      child: const Icon(Icons.broken_image,
+                      child: const Icon(Iconsax.gallery_slash,
                           color: AppColors.textHint),
                     ),
                   )
                 : Container(
                     color: AppColors.surface,
-                    child: const Icon(Icons.photo, color: AppColors.textHint),
+                    child: const Icon(Iconsax.gallery, color: AppColors.textHint),
                   ),
 
             // Gradient overlay

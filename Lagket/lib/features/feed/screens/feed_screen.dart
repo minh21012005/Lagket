@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../shared/models/photo_model.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/photo_card.dart';
+import '../../../core/services/firestore_service.dart';
 
 class FeedScreen extends ConsumerWidget {
   const FeedScreen({super.key});
@@ -35,12 +37,12 @@ class FeedScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined,
+            icon: const Icon(Iconsax.notification,
                 color: AppColors.textPrimary),
             onPressed: () => context.push('/notifications'),
           ),
           IconButton(
-            icon: const Icon(Icons.widgets_rounded,
+            icon: const Icon(Iconsax.category,
                 color: AppColors.textPrimary),
             onPressed: () => context.push('/widget'),
           ),
@@ -121,10 +123,10 @@ class _EmptyFeed extends StatelessWidget {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.12),
+                color: AppColors.primary.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.photo_library_outlined,
+              child: const Icon(Iconsax.gallery,
                   color: AppColors.primary, size: 40),
             ),
             const SizedBox(height: 20),
@@ -140,7 +142,7 @@ class _EmptyFeed extends StatelessWidget {
             const SizedBox(height: 24),
             TextButton.icon(
               onPressed: () => context.push('/friends/add'),
-              icon: const Icon(Icons.person_add_rounded,
+              icon: const Icon(Iconsax.user_add,
                   color: AppColors.primary),
               label: Text('Add friends',
                   style: AppTextStyles.bodyMedium

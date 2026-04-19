@@ -1,3 +1,4 @@
+import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
@@ -81,7 +82,7 @@ class _AppTextFieldState extends State<AppTextField> {
         suffixIcon: widget.obscureText
             ? IconButton(
                 icon: Icon(
-                  _obscure ? Icons.visibility_off : Icons.visibility,
+                  _obscure ? Iconsax.eye_slash : Iconsax.eye,
                   color: AppColors.textSecondary,
                   size: 20,
                 ),

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../main.dart';
 import '../../../core/services/firebase_auth_service.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../shared/models/user_model.dart';
@@ -16,8 +17,10 @@ final firestoreServiceProvider = Provider<FirestoreService>((ref) {
 
 // ─── Auth state ───────────────────────────────────────────────────────────────
 
-final authStateProvider = StreamProvider<User?>((ref) {
-  return ref.watch(firebaseAuthServiceProvider).authStateChanges;
+final authStateProvider = StreamProvider<User?>((ref) async* {
+  // Core Fix: Await Firebase initialization BEFORE accessing FirebaseAuth streams.
+  await ref.watch(firebaseInitProvider.future);
+  yield* ref.watch(firebaseAuthServiceProvider).authStateChanges;
 });
 
 // ─── Current user model ───────────────────────────────────────────────────────

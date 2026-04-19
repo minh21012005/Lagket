@@ -38,6 +38,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     // Redirect unauthenticated users
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
+      
+      // Keep user on the requested route (which defaults to '/') while Firebase/Auth is resolving
+      if (authState.isLoading) return null;
+
       final isLoggedIn = authState.value != null;
       final location = state.matchedLocation;
 

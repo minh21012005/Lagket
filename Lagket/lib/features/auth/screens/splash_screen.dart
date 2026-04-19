@@ -2,6 +2,8 @@ import 'package:iconsax/iconsax.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/foundation.dart';
+import '../../notification/services/fcm_service.dart';
 import '../providers/auth_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -43,18 +45,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    // React to auth state
-    ref.listen(authStateProvider, (_, next) {
-      next.whenData((user) {
-        Future.delayed(const Duration(milliseconds: 800), () {
-          if (!mounted) return;
-          if (user != null) {
-            context.go('/camera');
-          } else {
-            context.go('/login');
-          }
-        });
-      });
+    // React to auth state after it successfully resolves (i.e. Firebase is mapped and stream yielded)
+    ref.listen(authStateProvider, (_, authNext) {
+      if (!authNext.isLoading) {
+        if (!mounted) return;
+
+        // Setup raw notification channels silently for FCM 
+        if (!kIsWeb) {
+          FCMService().initializeSilent();
+        }
+
+        if (authNext.value != null) {
+          context.go('/camera');
+        } else {
+          context.go('/login');
+        }
+      }
     });
 
     return Scaffold(
@@ -78,7 +84,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primary.withOpacity(0.4),
+                          color: AppColors.primary.withValues(alpha: 0.4),
                           blurRadius: 30,
                           spreadRadius: 5,
                         ),

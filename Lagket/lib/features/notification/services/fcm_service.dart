@@ -10,15 +10,8 @@ class FCMService {
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
-  Future<void> initialize() async {
-    // Request permission
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // Initialize local notifications
+  Future<void> initializeSilent() async {
+    // Initialize local notifications silently without requesting permissions initially
     const androidInit =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings();
@@ -38,16 +31,25 @@ class FCMService {
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
 
-    // Get FCM token
-    final token = await _messaging.getToken();
-    // TODO: save token to Firestore for this user
-    // ignore: avoid_print
-    print('FCM Token: $token');
-
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForeground);
 
     // Background message handler is registered at top-level (main.dart)
+  }
+
+  Future<void> requestPermissionsAndToken() async {
+    // Request permission (may prompt user via OS)
+    await _messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Get FCM token
+    final token = await _messaging.getToken();
+    // TODO: save token to Firestore for this user
+    // ignore: avoid_print
+    print('FCM Token: \$token');
   }
 
   void _handleForeground(RemoteMessage message) {

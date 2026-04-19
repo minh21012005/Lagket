@@ -4,7 +4,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/constants/app_colors.dart';
-import 'features/notification/services/fcm_service.dart';
 import 'routes/app_router.dart';
 import 'firebase_options.dart';
 import 'package:flutter/foundation.dart';
@@ -17,21 +16,36 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
 }
 
+// Create a globally accessible FutureProvider for Firebase
+final firebaseInitProvider = FutureProvider<void>((ref) async {
+  throw UnimplementedError('Overridden in main()');
+});
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
+  // Fire and forget Firebase initialization (Don't await it!)
+  // This allows runApp to execute concurrently.
+  final firebaseInitFuture = Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  ).then((_) {
+    // Only bind background handlers AFTER Firebase initializes 
+    // off the critical path.
+    if (!kIsWeb) {
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    }
+  });
+
+  // We wrap the Future in an overriding Provider so the Splash Screen can listen to it.
+  runApp(
+    ProviderScope(
+      overrides: [
+        firebaseInitProvider.overrideWith((ref) => firebaseInitFuture),
+      ],
+      child: const LagketApp(),
+    ),
   );
-
-  if (!kIsWeb) {
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    await FCMService().initialize();
-  }
-
-  runApp(const ProviderScope(child: LagketApp()));
 }
-
 class LagketApp extends ConsumerWidget {
   const LagketApp({super.key});
 

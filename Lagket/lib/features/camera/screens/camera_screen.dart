@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:camera/camera.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:io';
+import '../../notification/services/fcm_service.dart';
 import '../providers/camera_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -21,7 +23,12 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initCamera());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initCamera();
+      if (!kIsWeb) {
+        FCMService().requestPermissionsAndToken();
+      }
+    });
   }
 
   Future<void> _initCamera() async {
@@ -149,7 +156,7 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
               left: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 48),
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 110),
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Colors.transparent, Colors.black87],
@@ -157,86 +164,81 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                     end: Alignment.bottomCenter,
                   ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        // Placeholder to balance the row
-                        const SizedBox(width: 48),
-
-                        // Capture button
-                        GestureDetector(
-                          onTap: camState.isInitialized ? _capture : null,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            width: camState.isCapturing ? 72 : 80,
-                            height: camState.isCapturing ? 72 : 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border:
-                                  Border.all(color: Colors.white, width: 4),
-                              gradient: camState.isCapturing
-                                  ? null
-                                  : AppColors.primaryGradient,
-                              color: camState.isCapturing
-                                  ? Colors.white24
-                                  : null,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppColors.primary.withValues(alpha: 0.5),
-                                  blurRadius: 20,
-                                  spreadRadius: 2,
-                                ),
-                              ],
-                            ),
-                            child: camState.isCapturing
-                                ? const Center(
-                                    child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor:
-                                        AlwaysStoppedAnimation(Colors.white),
-                                  ))
-                                : null,
-                          ),
-                        ),
-
-                        // Flip camera button
-                        IconButton(
-                          onPressed: camState.isInitialized
-                              ? () async {
-                                  final cameras = await ref
-                                      .read(availableCamerasProvider.future);
-                                  ref
-                                      .read(cameraNotifierProvider.notifier)
-                                      .toggleCamera(cameras);
-                                }
-                              : null,
-                          icon: const Icon(Iconsax.rotate_left_1,
-                              color: Colors.white, size: 26),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    // History text button
+                    // History Button (Left)
                     GestureDetector(
                       onTap: () => context.push('/history'),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Iconsax.clock,
-                              color: Colors.white54, size: 15),
-                          const SizedBox(width: 6),
-                          Text(
-                            'History',
-                            style: AppTextStyles.labelMedium.copyWith(
-                              color: Colors.white54,
-                              letterSpacing: 0.5,
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Iconsax.gallery,
+                            color: Colors.white, size: 24),
+                      ),
+                    ),
+
+                    // Capture button (Center)
+                    GestureDetector(
+                      onTap: camState.isInitialized ? _capture : null,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: camState.isCapturing ? 72 : 80,
+                        height: camState.isCapturing ? 72 : 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border:
+                              Border.all(color: Colors.white, width: 4),
+                          gradient: camState.isCapturing
+                              ? null
+                              : AppColors.primaryGradient,
+                          color: camState.isCapturing
+                              ? Colors.white24
+                              : null,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.5),
+                              blurRadius: 20,
+                              spreadRadius: 2,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                        child: camState.isCapturing
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation(Colors.white),
+                              ))
+                            : null,
+                      ),
+                    ),
+
+                    // Flip camera button (Right)
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        onPressed: camState.isInitialized
+                            ? () async {
+                                final cameras = await ref
+                                    .read(availableCamerasProvider.future);
+                                ref
+                                    .read(cameraNotifierProvider.notifier)
+                                    .toggleCamera(cameras);
+                              }
+                            : null,
+                        icon: const Icon(Iconsax.rotate_left_1,
+                            color: Colors.white, size: 24),
                       ),
                     ),
                   ],

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import '../../../core/services/storage_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/date_formatter.dart';
@@ -74,12 +77,54 @@ class _ConversationDetailScreenState
     }
   }
 
+  Future<void> _sendImage(String currentUserId) async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
+
+    if (image == null || !mounted) return;
+
+    setState(() => _sending = true);
+    try {
+      final storage = StorageService();
+      final imageUrl = await storage.uploadPhoto(
+        file: File(image.path),
+        senderId: currentUserId,
+      );
+
+      await ref.read(firestoreServiceProvider).sendTextMessage(
+            conversationId: widget.conversationId,
+            senderId: currentUserId,
+            content: imageUrl,
+          );
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload image: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider).value;
     final currentUserId = currentUser?.id ?? '';
     final messagesAsync =
         ref.watch(conversationDetailProvider(widget.conversationId));
+
+    final convAsync = ref.watch(conversationListProvider);
+    final conv = convAsync.value?.firstWhere(
+      (c) => c.id == widget.conversationId,
+      orElse: () => throw StateError('not found'),
+    );
+    final otherId = conv?.otherParticipant(currentUserId) ?? '';
+    final otherUserAsync = ref.watch(conversationUserProvider(otherId));
 
     // Listen for new messages from others to show notification
     ref.listen(conversationDetailProvider(widget.conversationId), (previous, next) {
@@ -91,22 +136,27 @@ class _ConversationDetailScreenState
         if (newMessages.length > oldMessages.length) {
           final latestMsg = newMessages.last;
           if (latestMsg.senderId != currentUserId) {
+            String notificationBody = latestMsg.content;
+
+            // Check if it's an image URL
+            if (latestMsg.content.startsWith('http') &&
+                (latestMsg.content.contains('cloudinary') ||
+                    latestMsg.content.contains('firebasestorage'))) {
+              notificationBody = 'đã gửi một ảnh cho bạn';
+            } else if (latestMsg.type == MessageType.photo_reply) {
+              notificationBody = 'đã phản hồi ảnh: ${latestMsg.content}';
+            } else if (latestMsg.type == MessageType.reaction) {
+              notificationBody = 'đã thả cảm xúc ${latestMsg.content} vào ảnh';
+            }
+
             FCMService().showLocalNotification(
-              title: 'New message',
-              body: latestMsg.content,
+              title: otherUserAsync.value?.displayUsername ?? 'Tin nhắn mới',
+              body: notificationBody,
             );
           }
         }
       }
     });
-
-    final convAsync = ref.watch(conversationListProvider);
-    final conv = convAsync.value?.firstWhere(
-      (c) => c.id == widget.conversationId,
-      orElse: () => throw StateError('not found'),
-    );
-    final otherId = conv?.otherParticipant(currentUserId) ?? '';
-    final otherUserAsync = ref.watch(conversationUserProvider(otherId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -162,6 +212,7 @@ class _ConversationDetailScreenState
             controller: _msgController,
             sending: _sending,
             onSend: () => _send(currentUserId),
+            onPickImage: () => _sendImage(currentUserId),
           ),
         ],
       ),
@@ -254,6 +305,12 @@ class _MessageBubble extends StatelessWidget {
   }
 
   Widget _buildMessageContent(BuildContext context) {
+    if (message.content.startsWith('http') &&
+        (message.content.contains('cloudinary') ||
+            message.content.contains('firebasestorage'))) {
+      return _ImageMessageBubble(message: message, isMe: isMe);
+    }
+
     switch (message.type) {
       case MessageType.reaction:
         return _ReactionBubble(message: message, isMe: isMe);
@@ -345,6 +402,60 @@ class _PhotoReplyBubble extends ConsumerWidget {
   }
 }
 
+// ─── Image Message bubble ────────────────────────────────────────────────────
+
+class _ImageMessageBubble extends StatelessWidget {
+  final MessageModel message;
+  final bool isMe;
+
+  const _ImageMessageBubble({required this.message, required this.isMe});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment:
+          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(17),
+            child: CachedNetworkImage(
+              imageUrl: message.content,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(
+                height: 200,
+                width: 200,
+                color: AppColors.surfaceElevated,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+              errorWidget: (_, __, ___) => Container(
+                height: 200,
+                width: 200,
+                color: AppColors.surfaceElevated,
+                child: const Icon(Iconsax.gallery_slash, color: AppColors.textHint),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        if (message.createdAt != null)
+          Text(
+            DateFormatter.formatTime(message.createdAt!),
+            style: AppTextStyles.caption
+                .copyWith(color: AppColors.textHint, fontSize: 10),
+          ),
+      ],
+    );
+  }
+}
+
 // ─── Text bubble ─────────────────────────────────────────────────────────────
 
 class _TextBubble extends StatelessWidget {
@@ -402,14 +513,16 @@ class _TextBubble extends StatelessWidget {
 
 // ─── Reaction bubble ──────────────────────────────────────────────────────────
 
-class _ReactionBubble extends StatelessWidget {
+class _ReactionBubble extends ConsumerWidget {
   final MessageModel message;
   final bool isMe;
 
   const _ReactionBubble({required this.message, required this.isMe});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final photoAsync = ref.watch(_messagePhotoProvider(message.photoId ?? ''));
+
     return Column(
       crossAxisAlignment:
           isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -424,6 +537,30 @@ class _ReactionBubble extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (message.photoId != null)
+                Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: photoAsync.when(
+                      data: (photo) => photo != null
+                          ? CachedNetworkImage(
+                              imageUrl: photo.imageUrl,
+                              height: 120,
+                              width: 120,
+                              fit: BoxFit.cover,
+                            )
+                          : const SizedBox(width: 120, height: 120),
+                      loading: () => Container(
+                        height: 120,
+                        width: 120,
+                        color: Colors.black12,
+                        child: const Center(child: CircularProgressIndicator()),
+                      ),
+                      error: (_, __) => const SizedBox(width: 120, height: 120),
+                    ),
+                  ),
+                ),
               Text(
                 message.content,
                 style: const TextStyle(fontSize: 20),
@@ -484,11 +621,13 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
+  final VoidCallback onPickImage;
 
   const _InputBar({
     required this.controller,
     required this.sending,
     required this.onSend,
+    required this.onPickImage,
   });
 
   @override
@@ -507,6 +646,28 @@ class _InputBar extends StatelessWidget {
           top: false,
           child: Row(
             children: [
+              // ── Gallery Upload Button ──────────────────────────────────────
+              GestureDetector(
+                onTap: sending ? null : onPickImage,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceElevated,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: sending
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Iconsax.gallery,
+                          color: AppColors.textSecondary, size: 20),
+                ),
+              ),
+              const SizedBox(width: 8),
+
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
@@ -518,6 +679,7 @@ class _InputBar extends StatelessWidget {
                     controller: controller,
                     minLines: 1,
                     maxLines: 4,
+                    enabled: !sending,
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => onSend(),
                     style: const TextStyle(

@@ -149,7 +149,9 @@ class _ConversationTile extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              otherUser?.displayUsername ?? 'Unknown',
+                              otherId == myId
+                                  ? 'You'
+                                  : (otherUser?.displayUsername ?? 'Unknown'),
                               style: AppTextStyles.labelLarge,
                               overflow: TextOverflow.ellipsis,
                             ),

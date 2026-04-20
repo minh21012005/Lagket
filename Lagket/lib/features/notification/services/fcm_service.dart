@@ -56,10 +56,18 @@ class FCMService {
     final notification = message.notification;
     if (notification == null) return;
 
+    String body = notification.body ?? '';
+
+    // Transform image URL to readable text in notification
+    if (body.startsWith('http') &&
+        (body.contains('cloudinary') || body.contains('firebasestorage'))) {
+      body = ' send you a picture';
+    }
+
     _localNotifications.show(
       notification.hashCode,
       notification.title,
-      notification.body,
+      body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'lagket_channel',

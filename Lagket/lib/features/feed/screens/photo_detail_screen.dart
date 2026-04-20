@@ -178,16 +178,14 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
 
         // ── Sender info overlay ───────────────────────────────────────────────
         Positioned(
-          bottom: 0,
+          bottom: 180, // Nâng lên để nằm trên các nút reaction
           left: 0,
           right: 0,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 60, 20, 48),
-            decoration: const BoxDecoration(
-              gradient: AppColors.photoOverlay,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: senderAsync.when(
               data: (sender) => Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Tapping the avatar opens the conversation
                   GestureDetector(
@@ -220,8 +218,8 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
                           sender?.id == currentUserId
                               ? 'You'
                               : (sender?.displayUsername ?? 'Unknown'),
-                          style: AppTextStyles.headlineSmall
-                              .copyWith(color: Colors.white),
+                          style: AppTextStyles.bodyLarge
+                              .copyWith(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                         if (widget.photo.createdAt != null)
                           Text(
@@ -229,6 +227,25 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
                             style: AppTextStyles.bodySmall
                                 .copyWith(color: Colors.white70),
                           ),
+                        if (widget.photo.caption != null &&
+                            widget.photo.caption!.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            widget.photo.caption!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(0, 1),
+                                  blurRadius: 4.0,
+                                  color: Colors.black,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

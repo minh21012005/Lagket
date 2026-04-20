@@ -56,12 +56,15 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         senderId: currentUser.id,
       );
 
+      final caption = ref.read(captionProvider);
+
       // Save to Firestore
       final photo = PhotoModel(
         id: '',
         senderId: currentUser.id,
         receiverIds: receiverIds,
         imageUrl: imageUrl,
+        caption: caption.isNotEmpty ? caption : null,
       );
       await ref.read(firestoreServiceProvider).createPhoto(photo);
 

@@ -12,6 +12,8 @@ class ConversationModel {
 
   final String? lastMessageSenderId;
 
+  final List<String> readBy;
+
   final DateTime? updatedAt;
 
   const ConversationModel({
@@ -19,6 +21,7 @@ class ConversationModel {
     required this.participants,
     this.lastMessage = '',
     this.lastMessageSenderId,
+    this.readBy = const [],
     this.updatedAt,
   });
 
@@ -28,6 +31,7 @@ class ConversationModel {
       participants: List<String>.from(map['participants'] ?? []),
       lastMessage: map['lastMessage'] as String? ?? '',
       lastMessageSenderId: map['lastMessageSenderId'] as String?,
+      readBy: List<String>.from(map['readBy'] ?? []),
       updatedAt: map['updatedAt'] is Timestamp
           ? (map['updatedAt'] as Timestamp).toDate()
           : null,
@@ -38,6 +42,7 @@ class ConversationModel {
         'participants': participants,
         'lastMessage': lastMessage,
         'lastMessageSenderId': lastMessageSenderId,
+        'readBy': readBy,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 

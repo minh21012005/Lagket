@@ -410,6 +410,11 @@ class FirestoreService {
   }) async {
     final batch = _db.batch();
 
+    // Detect if content is an image URL to show a friendly preview
+    final isImage = content.startsWith('http') &&
+        (content.contains('cloudinary') || content.contains('firebasestorage'));
+    final displayContent = isImage ? 'đã gửi một ảnh' : content;
+
     final msgDoc = _db.collection(AppConstants.messagesCollection).doc();
     batch.set(msgDoc, {
       'conversationId': conversationId,
@@ -423,8 +428,9 @@ class FirestoreService {
         .collection(AppConstants.conversationsCollection)
         .doc(conversationId);
     batch.update(convRef, {
-      'lastMessage': content,
+      'lastMessage': displayContent,
       'lastMessageSenderId': senderId,
+      'readBy': [senderId],
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
@@ -449,12 +455,18 @@ class FirestoreService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
+    // Detect if reply content is an image URL
+    final isImage = content.startsWith('http') &&
+        (content.contains('cloudinary') || content.contains('firebasestorage'));
+    final displayContent = isImage ? 'một ảnh' : content;
+
     final convRef = _db
         .collection(AppConstants.conversationsCollection)
         .doc(conversationId);
     batch.update(convRef, {
-      'lastMessage': 'Replied to a photo: $content',
+      'lastMessage': 'Đã trả lời $displayContent',
       'lastMessageSenderId': senderId,
+      'readBy': [senderId],
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
@@ -486,9 +498,28 @@ class FirestoreService {
     batch.update(convRef, {
       'lastMessage': preview,
       'lastMessageSenderId': senderId,
+      'readBy': [senderId],
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
     await batch.commit();
+    Future<void> markConversationAsRead(
+      String conversationId, String userId) async {
+    await _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId)
+        .update({
+      'readBy': FieldValue.arrayUnion([userId]),
+    });
+  }
+}
+  Future<void> markConversationAsRead(
+      String conversationId, String userId) async {
+    await _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId)
+        .update({
+      'readBy': FieldValue.arrayUnion([userId]),
+    });
   }
 }

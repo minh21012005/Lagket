@@ -35,6 +35,21 @@ class _ConversationDetailScreenState
   bool _sending = false;
 
   @override
+  void initState() {
+    super.initState();
+    _markAsRead();
+  }
+
+  Future<void> _markAsRead() async {
+    final currentUserId = ref.read(currentUserProvider).value?.id;
+    if (currentUserId != null) {
+      await ref
+          .read(firestoreServiceProvider)
+          .markConversationAsRead(widget.conversationId, currentUserId);
+    }
+  }
+
+  @override
   void dispose() {
     _msgController.dispose();
     _scrollCtrl.dispose();
@@ -125,38 +140,6 @@ class _ConversationDetailScreenState
     );
     final otherId = conv?.otherParticipant(currentUserId) ?? '';
     final otherUserAsync = ref.watch(conversationUserProvider(otherId));
-
-    // Listen for new messages from others to show notification
-    ref.listen(conversationDetailProvider(widget.conversationId), (previous, next) {
-      if (next is AsyncData<List<MessageModel>> && 
-          previous is AsyncData<List<MessageModel>>) {
-        final newMessages = next.value;
-        final oldMessages = previous.value;
-        
-        if (newMessages.length > oldMessages.length) {
-          final latestMsg = newMessages.last;
-          if (latestMsg.senderId != currentUserId) {
-            String notificationBody = latestMsg.content;
-
-            // Check if it's an image URL
-            if (latestMsg.content.startsWith('http') &&
-                (latestMsg.content.contains('cloudinary') ||
-                    latestMsg.content.contains('firebasestorage'))) {
-              notificationBody = 'đã gửi một ảnh cho bạn';
-            } else if (latestMsg.type == MessageType.photo_reply) {
-              notificationBody = 'đã phản hồi ảnh: ${latestMsg.content}';
-            } else if (latestMsg.type == MessageType.reaction) {
-              notificationBody = 'đã thả cảm xúc ${latestMsg.content} vào ảnh';
-            }
-
-            FCMService().showLocalNotification(
-              title: otherUserAsync.value?.displayUsername ?? 'Tin nhắn mới',
-              body: notificationBody,
-            );
-          }
-        }
-      }
-    });
 
     return Scaffold(
       backgroundColor: AppColors.background,

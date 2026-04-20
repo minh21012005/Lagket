@@ -61,7 +61,7 @@ class FCMService {
     // Transform image URL to readable text in notification
     if (body.startsWith('http') &&
         (body.contains('cloudinary') || body.contains('firebasestorage'))) {
-      body = ' send you a picture';
+      body = 'sent you a photo';
     }
 
     _localNotifications.show(

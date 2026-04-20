@@ -4,6 +4,7 @@ import '../../../main.dart';
 import '../../../core/services/firebase_auth_service.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../shared/models/user_model.dart';
+import '../../notification/services/fcm_service.dart';
 
 // ─── Service providers ────────────────────────────────────────────────────────
 
@@ -84,6 +85,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       await _authService.signInWithEmail(email: email, password: password);
+      
+      // Trigger login success notification
+      FCMService().showLocalNotification(
+        title: 'Welcome back!',
+        body: 'You have logged in successfully to Lagket.',
+      );
+
       state = state.copyWith(isLoading: false);
       return true;
     } on FirebaseAuthException catch (e) {

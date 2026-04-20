@@ -9,8 +9,10 @@ import '../../../core/services/firestore_service.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/messaging/providers/messaging_provider.dart';
 import '../../../shared/models/message_model.dart';
+import '../../../shared/models/photo_model.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/user_avatar.dart';
+import '../../notification/services/fcm_service.dart';
 
 // ─── Conversation Detail Screen ───────────────────────────────────────────────
 
@@ -79,7 +81,25 @@ class _ConversationDetailScreenState
     final messagesAsync =
         ref.watch(conversationDetailProvider(widget.conversationId));
 
-    // Determine the other participant
+    // Listen for new messages from others to show notification
+    ref.listen(conversationDetailProvider(widget.conversationId), (previous, next) {
+      if (next is AsyncData<List<MessageModel>> && 
+          previous is AsyncData<List<MessageModel>>) {
+        final newMessages = next.value;
+        final oldMessages = previous.value;
+        
+        if (newMessages.length > oldMessages.length) {
+          final latestMsg = newMessages.last;
+          if (latestMsg.senderId != currentUserId) {
+            FCMService().showLocalNotification(
+              title: 'New message',
+              body: latestMsg.content,
+            );
+          }
+        }
+      }
+    });
+
     final convAsync = ref.watch(conversationListProvider);
     final conv = convAsync.value?.firstWhere(
       (c) => c.id == widget.conversationId,
@@ -93,7 +113,6 @@ class _ConversationDetailScreenState
       appBar: _buildAppBar(otherUserAsync.value),
       body: Column(
         children: [
-          // ── Message list ─────────────────────────────────────────────────
           Expanded(
             child: messagesAsync.when(
               loading: () => const Center(
@@ -113,7 +132,6 @@ class _ConversationDetailScreenState
                         otherUserAsync.value?.displayUsername ?? '...',
                   );
                 }
-                // Auto-scroll whenever messages change
                 _scrollToBottom();
                 return ListView.builder(
                   controller: _scrollCtrl,
@@ -140,8 +158,6 @@ class _ConversationDetailScreenState
               },
             ),
           ),
-
-          // ── Input bar ────────────────────────────────────────────────────
           _InputBar(
             controller: _msgController,
             sending: _sending,
@@ -213,8 +229,6 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isReaction = message.type == MessageType.reaction;
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
@@ -222,7 +236,6 @@ class _MessageBubble extends StatelessWidget {
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Other user avatar (shown on left for received messages)
           if (!isMe) ...[
             UserAvatar(
               avatarUrl: senderUser?.avatarUrl,
@@ -231,17 +244,103 @@ class _MessageBubble extends StatelessWidget {
             ),
             const SizedBox(width: 6),
           ],
-
-          // Bubble
           Flexible(
-            child: isReaction
-                ? _ReactionBubble(message: message, isMe: isMe)
-                : _TextBubble(message: message, isMe: isMe),
+            child: _buildMessageContent(context),
           ),
-
           if (isMe) const SizedBox(width: 4),
         ],
       ),
+    );
+  }
+
+  Widget _buildMessageContent(BuildContext context) {
+    switch (message.type) {
+      case MessageType.reaction:
+        return _ReactionBubble(message: message, isMe: isMe);
+      case MessageType.photo_reply:
+        return _PhotoReplyBubble(message: message, isMe: isMe);
+      default:
+        return _TextBubble(message: message, isMe: isMe);
+    }
+  }
+}
+
+// ─── Photo Reply bubble ──────────────────────────────────────────────────────
+
+class _PhotoReplyBubble extends ConsumerWidget {
+  final MessageModel message;
+  final bool isMe;
+
+  const _PhotoReplyBubble({required this.message, required this.isMe});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final photoAsync = ref.watch(_messagePhotoProvider(message.photoId ?? ''));
+
+    return Column(
+      crossAxisAlignment:
+          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.7,
+          ),
+          decoration: BoxDecoration(
+            color: isMe ? null : AppColors.surfaceElevated,
+            gradient: isMe ? AppColors.primaryGradient : null,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (message.photoId != null)
+                Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(14), bottom: Radius.circular(4)),
+                    child: photoAsync.when(
+                      data: (photo) => photo != null
+                          ? CachedNetworkImage(
+                              imageUrl: photo.imageUrl,
+                              height: 120,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            )
+                          : const SizedBox(height: 100),
+                      loading: () => Container(
+                        height: 120,
+                        width: double.infinity,
+                        color: Colors.black12,
+                        child: const Center(child: CircularProgressIndicator()),
+                      ),
+                      error: (_, __) => const SizedBox(height: 100),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Text(
+                  message.content,
+                  style: TextStyle(
+                    color: isMe ? Colors.white : AppColors.textPrimary,
+                    fontSize: 14.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        if (message.createdAt != null)
+          Text(
+            DateFormatter.formatTime(message.createdAt!),
+            style: AppTextStyles.caption
+                .copyWith(color: AppColors.textHint, fontSize: 10),
+          ),
+      ],
     );
   }
 }
@@ -408,7 +507,6 @@ class _InputBar extends StatelessWidget {
           top: false,
           child: Row(
             children: [
-              // ── Text field ────────────────────────────────────────────
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
@@ -435,8 +533,6 @@ class _InputBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-
-              // ── Send button ────────────────────────────────────────────
               GestureDetector(
                 onTap: sending ? null : onSend,
                 child: AnimatedContainer(
@@ -511,3 +607,11 @@ class _EmptyChat extends StatelessWidget {
     );
   }
 }
+
+// ─── Providers ────────────────────────────────────────────────────────────────
+
+final _messagePhotoProvider =
+    FutureProvider.family<PhotoModel?, String>((ref, photoId) async {
+  if (photoId.isEmpty) return null;
+  return ref.watch(firestoreServiceProvider).getPhoto(photoId);
+});

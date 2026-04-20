@@ -4,6 +4,16 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
+import '../../features/auth/providers/auth_provider.dart';
+import '../../features/messaging/providers/messaging_provider.dart';
+import '../../features/feed/providers/feed_provider.dart';
+import '../../features/feed/providers/history_provider.dart';
+import '../../features/feed/providers/reaction_provider.dart';
+import '../../features/notification/services/fcm_service.dart';
+import '../../shared/models/message_model.dart';
+import '../../shared/models/reaction_model.dart';
+import '../../shared/models/photo_model.dart';
+import '../../shared/models/user_model.dart';
 
 // ─── Tab index provider ───────────────────────────────────────────────────────
 
@@ -46,6 +56,60 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = navigationShell.currentIndex;
+    final currentUser = ref.watch(currentUserProvider).value;
+    final currentUserId = currentUser?.id ?? '';
+
+    // ─── Global Message / Comment Listener ───────────────────────────────────
+    ref.listen(conversationListProvider, (previous, next) {
+      if (next.hasValue && previous?.hasValue == true) {
+        for (final conv in next.value!) {
+          final prevConv = previous!.value!.firstWhere(
+            (c) => c.id == conv.id,
+            orElse: () => conv,
+          );
+
+          if (conv.lastMessage.isNotEmpty &&
+              conv.lastMessage != prevConv.lastMessage &&
+              conv.lastMessageSenderId != null &&
+              conv.lastMessageSenderId != currentUserId) {
+            
+            ref.read(conversationUserProvider(conv.lastMessageSenderId!))
+                .whenData((sender) {
+              FCMService().showLocalNotification(
+                title: sender?.displayUsername ?? 'New message',
+                body: conv.lastMessage,
+              );
+            });
+          }
+        }
+      }
+    });
+
+    // ─── Global Reaction Listener ───────────────────────────────────────────
+    // We listen to all photos sent by the user to detect new reactions.
+    final myPhotos = ref.watch(historyPhotosProvider).value ?? [];
+    for (final photo in myPhotos.where((p) => p.senderId == currentUserId)) {
+      ref.listen(reactionsProvider(photo.id), (previous, next) {
+        if (next is AsyncData<List<ReactionModel>> &&
+            previous is AsyncData<List<ReactionModel>>) {
+          final newReactions = next.value;
+          final oldReactions = previous.value;
+
+          if (newReactions.length > oldReactions.length) {
+            final latest = newReactions.last;
+            // Only notify if someone ELSE reacted to MY photo
+            if (latest.userId != currentUserId) {
+              ref.read(conversationUserProvider(latest.userId)).whenData((sender) {
+                FCMService().showLocalNotification(
+                  title: '${sender?.displayUsername ?? 'Someone'} reacted ${latest.type.emoji}',
+                  body: 'to your photo',
+                );
+              });
+            }
+          }
+        }
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,

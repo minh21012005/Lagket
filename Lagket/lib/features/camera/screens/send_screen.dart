@@ -14,6 +14,7 @@ import '../../../shared/models/photo_model.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/user_avatar.dart';
+import '../../notification/services/fcm_service.dart';
 
 class SendScreen extends ConsumerStatefulWidget {
   const SendScreen({super.key});
@@ -63,6 +64,12 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         imageUrl: imageUrl,
       );
       await ref.read(firestoreServiceProvider).createPhoto(photo);
+
+      // Trigger upload success notification
+      FCMService().showLocalNotification(
+        title: 'Moment Shared! 📸',
+        body: 'Your photo has been uploaded and shared with your friends.',
+      );
 
       // Clear state
       ref.read(capturedFileProvider.notifier).state = null;

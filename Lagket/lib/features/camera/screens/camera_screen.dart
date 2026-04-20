@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'package:permission_handler/permission_handler.dart';
 import '../../notification/services/fcm_service.dart';
 import '../providers/camera_provider.dart';
 import '../../../core/constants/app_colors.dart';
@@ -128,18 +129,55 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
             else if (camState.error != null)
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(40),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Iconsax.camera_slash,
-                          color: AppColors.textHint, size: 60),
-                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Iconsax.camera_slash,
+                            color: AppColors.error, size: 60),
+                      ),
+                      const SizedBox(height: 24),
                       Text(
-                        camState.error!,
+                        'Camera Access Denied',
+                        style: AppTextStyles.displayMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Lagket needs camera access so you can take and share photos with your friends.',
                         style: AppTextStyles.bodyMedium
                             .copyWith(color: AppColors.textSecondary),
                         textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => openAppSettings(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Open Settings',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () => _initCamera(),
+                        child: const Text('Try Again', 
+                          style: TextStyle(color: AppColors.textSecondary)),
                       ),
                     ],
                   ),

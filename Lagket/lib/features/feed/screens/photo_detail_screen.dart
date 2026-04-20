@@ -15,6 +15,7 @@ import '../../../shared/models/photo_model.dart';
 import '../../../shared/models/reaction_model.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/user_avatar.dart';
+import '../../notification/services/fcm_service.dart';
 
 class PhotoDetailScreen extends ConsumerWidget {
   final String photoId;
@@ -91,10 +92,13 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
       final fs = ref.read(firestoreServiceProvider);
       final convId =
           await fs.getOrCreateConversation(currentUserId, otherId);
-      await fs.sendTextMessage(
+      
+      // Use sendPhotoReplyMessage to link the message with the photo
+      await fs.sendPhotoReplyMessage(
         conversationId: convId,
         senderId: currentUserId,
         content: text,
+        photoId: widget.photo.id,
       );
       _msgController.clear();
     } catch (e) {

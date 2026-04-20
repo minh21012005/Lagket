@@ -32,8 +32,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
   }
 
   Future<void> _initCamera() async {
-    final cameras = await ref.read(availableCamerasProvider.future);
-    await ref.read(cameraNotifierProvider.notifier).initialize(cameras);
+    await Future.microtask(() async {
+      final cameras = await ref.read(availableCamerasProvider.future);
+      await ref.read(cameraNotifierProvider.notifier).initialize(cameras);
+    });
   }
 
   @override

@@ -224,11 +224,13 @@ class FirestoreService {
     final receivedStream = col
         .where('receiverIds', arrayContains: userId)
         .orderBy('createdAt', descending: true)
+        .limit(AppConstants.feedPageSize)
         .snapshots();
 
     final sentStream = col
         .where('senderId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
+        .limit(AppConstants.feedPageSize)
         .snapshots();
 
     // Merge the two QuerySnapshots by listening to both and re-emitting on change.
@@ -398,11 +400,16 @@ class FirestoreService {
     return _db
         .collection(AppConstants.conversationsCollection)
         .where('participants', arrayContains: userId)
-        .orderBy('updatedAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => ConversationModel.fromMap(d.data(), d.id))
-            .toList());
+        .map((snap) {
+      final conversations = snap.docs
+          .map((d) => ConversationModel.fromMap(d.data(), d.id))
+          .toList();
+      // Sort in memory to avoid requiring a composite index
+      conversations.sort((a, b) =>
+          (b.updatedAt ?? DateTime(0)).compareTo(a.updatedAt ?? DateTime(0)));
+      return conversations;
+    });
   }
 
   /// Real-time stream of messages in [conversationId], oldest first.

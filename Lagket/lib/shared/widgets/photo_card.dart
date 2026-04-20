@@ -39,6 +39,9 @@ class PhotoCard extends StatelessWidget {
                 ? CachedNetworkImage(
                     imageUrl: photo.imageUrl,
                     fit: BoxFit.cover,
+                    memCacheWidth: 800,
+                    memCacheHeight: 800,
+                    filterQuality: FilterQuality.medium,
                     placeholder: (_, __) => Shimmer.fromColors(
                       baseColor: AppColors.surface,
                       highlightColor: AppColors.surfaceElevated,

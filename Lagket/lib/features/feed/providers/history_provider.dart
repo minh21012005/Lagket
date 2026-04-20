@@ -68,10 +68,7 @@ final filteredHistoryProvider = Provider<AsyncValue<List<PhotoModel>>>((ref) {
             .toList();
       case FriendPhotosFilter(:final friendId):
         return photos
-            .where((p) =>
-                p.senderId == friendId ||
-                (p.senderId == currentUser?.id &&
-                    p.receiverIds.contains(friendId)))
+            .where((p) => p.senderId == friendId)
             .toList();
     }
   });

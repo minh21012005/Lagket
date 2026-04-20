@@ -518,13 +518,21 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
   Future<void> _sendMessage() async {
     final text = _msgController.text.trim();
     if (text.isEmpty) return;
+
+    // Do not message oneself
+    final otherId = widget.photo.senderId;
+    if (otherId.isEmpty || otherId == widget.currentUserId) return;
+
     setState(() => _sendingMsg = true);
     try {
-      await ref.read(firestoreServiceProvider).addMessage(
-            photoId: widget.photo.id,
-            senderId: widget.currentUserId,
-            content: text,
-          );
+      final fs = ref.read(firestoreServiceProvider);
+      final convId =
+          await fs.getOrCreateConversation(widget.currentUserId, otherId);
+      await fs.sendTextMessage(
+        conversationId: convId,
+        senderId: widget.currentUserId,
+        content: text,
+      );
       _msgController.clear();
     } finally {
       if (mounted) setState(() => _sendingMsg = false);
@@ -547,6 +555,9 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
         CachedNetworkImage(
           imageUrl: widget.photo.imageUrl,
           fit: BoxFit.cover,
+          memCacheWidth: 800,
+          memCacheHeight: 800,
+          filterQuality: FilterQuality.medium,
           placeholder: (_, __) => Container(color: AppColors.surface),
           errorWidget: (_, __, ___) => Container(
             color: AppColors.surface,
@@ -899,6 +910,9 @@ class _GridPhotoView extends ConsumerWidget {
                 CachedNetworkImage(
                   imageUrl: photo.imageUrl,
                   fit: BoxFit.cover,
+                  memCacheWidth: 800,
+                  memCacheHeight: 800,
+                  filterQuality: FilterQuality.medium,
                   placeholder: (_, __) =>
                       Container(color: AppColors.surface),
                   errorWidget: (_, __, ___) => Container(

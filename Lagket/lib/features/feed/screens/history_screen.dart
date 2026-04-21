@@ -617,6 +617,29 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
           ),
         ),
 
+        // Photo Caption
+        if (widget.photo.caption != null && widget.photo.caption!.isNotEmpty)
+          Positioned(
+            bottom: 220 - 45, // Đặt ngay dưới thông tin sender (khoảng cách phù hợp)
+            left: 16,
+            right: 16,
+            child: Text(
+              widget.photo.caption!,
+              style: AppTextStyles.bodyLarge.copyWith(
+                color: Colors.white,
+                shadows: [
+                  const Shadow(
+                    offset: Offset(0, 1),
+                    blurRadius: 3.0,
+                    color: Colors.black54,
+                  ),
+                ],
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+
         // Reaction summary
         Positioned(
           bottom: 174,

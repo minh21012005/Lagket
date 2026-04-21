@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../providers/auth_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../shared/widgets/app_button.dart';
@@ -117,7 +118,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               ),
               const SizedBox(height: 28),
               TextButton(
-                onPressed: () => context.go('/login'),
+                onPressed: () async {
+                  await ref.read(firebaseAuthServiceProvider).signOut();
+                  if (mounted) context.go('/login');
+                },
                 child: Text(
                   'Back to login',
                   style:

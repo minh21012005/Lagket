@@ -57,15 +57,8 @@ class _ConversationDetailScreenState
   }
 
   void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) {
-        _scrollCtrl.animateTo(
-          _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+    // Không còn cần thiết phải scroll thủ công khi dùng reverse: true
+    // vì ListView sẽ tự động giữ vị trí ở dưới cùng (index 0).
   }
 
   Future<void> _send(String currentUserId) async {
@@ -80,7 +73,6 @@ class _ConversationDetailScreenState
             content: text,
           );
       _msgController.clear();
-      _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -114,7 +106,6 @@ class _ConversationDetailScreenState
             senderId: currentUserId,
             content: imageUrl,
           );
-      _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -165,25 +156,30 @@ class _ConversationDetailScreenState
                         otherUserAsync.value?.displayUsername ?? '...',
                   );
                 }
-                _scrollToBottom();
+                
                 return ListView.builder(
                   controller: _scrollCtrl,
+                  reverse: true,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   itemCount: messages.length,
                   itemBuilder: (_, i) {
                     final msg = messages[i];
                     final isMe = msg.senderId == currentUserId;
-                    final showDate = i == 0 ||
-                        _shouldShowDate(messages[i - 1], msg);
+                    
+                    // Với reverse: true, i=0 là tin nhắn mới nhất (ở dưới cùng)
+                    // messages[i+1] là tin nhắn cũ hơn
+                    final showDate = i == messages.length - 1 ||
+                        _shouldShowDate(messages[i + 1], msg);
+
                     return Column(
                       children: [
-                        if (showDate) _DateDivider(date: msg.createdAt),
                         _MessageBubble(
                           message: msg,
                           isMe: isMe,
                           senderUser: isMe ? currentUser : otherUserAsync.value,
                         ),
+                        if (showDate) _DateDivider(date: msg.createdAt),
                       ],
                     );
                   },
@@ -202,9 +198,9 @@ class _ConversationDetailScreenState
     );
   }
 
-  bool _shouldShowDate(MessageModel prev, MessageModel curr) {
-    if (prev.createdAt == null || curr.createdAt == null) return false;
-    return curr.createdAt!.difference(prev.createdAt!).inMinutes > 30;
+  bool _shouldShowDate(MessageModel older, MessageModel newer) {
+    if (older.createdAt == null || newer.createdAt == null) return false;
+    return newer.createdAt!.difference(older.createdAt!).inMinutes > 30;
   }
 
   PreferredSizeWidget _buildAppBar(UserModel? otherUser) {

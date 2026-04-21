@@ -140,3 +140,6 @@ final cameraNotifierProvider =
 
 // Captured file provider for passing between screens
 final capturedFileProvider = StateProvider<File?>((ref) => null);
+
+// Caption for the captured photo
+final captionProvider = StateProvider<String>((ref) => "");

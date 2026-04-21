@@ -217,8 +217,6 @@ class FirestoreService {
 
   /// Combined history stream: sent + received, deduplicated, sorted newest first.
   Stream<List<PhotoModel>> watchCombinedHistory(String userId) {
-    // We return the received stream and merge sent on top.
-    // A simple approach: use the receiverIds stream as base and add own sent.
     final col = _db.collection(AppConstants.photosCollection);
 
     final receivedStream = col
@@ -233,7 +231,6 @@ class FirestoreService {
         .limit(AppConstants.feedPageSize)
         .snapshots();
 
-    // Merge the two QuerySnapshots by listening to both and re-emitting on change.
     return _mergeTwoPhotoStreams(sentStream, receivedStream);
   }
 
@@ -277,8 +274,6 @@ class FirestoreService {
     return merged;
   }
 
-  /// Stream of photos sent by a user in a given year (for calendar view).
-  /// Requires a composite Firestore index: senderId ASC + createdAt ASC.
   Stream<List<PhotoModel>> watchSentPhotosForYear(String userId, int year) {
     final start = Timestamp.fromDate(DateTime(year));
     final end = Timestamp.fromDate(DateTime(year + 1));
@@ -293,7 +288,6 @@ class FirestoreService {
             s.docs.map((d) => PhotoModel.fromMap(d.data(), d.id)).toList());
   }
 
-  /// Count of photos sent by this user (for profile stats).
   Future<int> getSentPhotoCount(String userId) async {
     final snap = await _db
         .collection(AppConstants.photosCollection)
@@ -305,8 +299,6 @@ class FirestoreService {
 
   // ─── Reactions ────────────────────────────────────────────────────────────────
 
-  /// Upsert a reaction. Each user can have at most ONE reaction per photo
-  /// (document id = `<photoId>_<userId>` to enforce uniqueness cheaply).
   Future<void> upsertReaction({
     required String photoId,
     required String userId,
@@ -321,13 +313,11 @@ class FirestoreService {
     });
   }
 
-  /// Remove a user's reaction from a photo.
   Future<void> removeReaction({required String photoId, required String userId}) async {
     final docId = '${photoId}_$userId';
     await _db.collection(AppConstants.reactionsCollection).doc(docId).delete();
   }
 
-  /// Real-time stream of all reactions for a single photo.
   Stream<List<ReactionModel>> watchReactions(String photoId) {
     return _db
         .collection(AppConstants.reactionsCollection)
@@ -337,9 +327,8 @@ class FirestoreService {
             snap.docs.map((d) => ReactionModel.fromMap(d.data(), d.id)).toList());
   }
 
-  // ─── Messages (legacy – kept for backward compat) ────────────────────────────
+  // ─── Messages ────────────────────────────────────────────────────────────────
 
-  /// Add a message to a photo (legacy – prefer sendTextMessage).
   Future<void> addMessage({
     required String photoId,
     required String senderId,
@@ -355,7 +344,6 @@ class FirestoreService {
     });
   }
 
-  /// Real-time stream of messages for a photo (legacy), oldest first.
   Stream<List<MessageModel>> watchMessages(String photoId) {
     return _db
         .collection(AppConstants.messagesCollection)
@@ -368,13 +356,9 @@ class FirestoreService {
 
   // ─── Conversations ────────────────────────────────────────────────────────────
 
-  /// Returns the existing conversation id between [userA] and [userB], or
-  /// creates a new one and returns its id. Safe to call concurrently because
-  /// Firestore transactions are atomic.
   Future<String> getOrCreateConversation(String userA, String userB) async {
     final participants = [userA, userB]..sort();
 
-    // Query for an existing conversation involving both participants.
     final snap = await _db
         .collection(AppConstants.conversationsCollection)
         .where('participants', isEqualTo: participants)
@@ -385,7 +369,6 @@ class FirestoreService {
       return snap.docs.first.id;
     }
 
-    // Create a new conversation document.
     final doc = _db.collection(AppConstants.conversationsCollection).doc();
     await doc.set({
       'participants': participants,
@@ -395,7 +378,6 @@ class FirestoreService {
     return doc.id;
   }
 
-  /// Real-time stream of all conversations for [userId], newest first.
   Stream<List<ConversationModel>> watchConversations(String userId) {
     return _db
         .collection(AppConstants.conversationsCollection)
@@ -405,14 +387,12 @@ class FirestoreService {
       final conversations = snap.docs
           .map((d) => ConversationModel.fromMap(d.data(), d.id))
           .toList();
-      // Sort in memory to avoid requiring a composite index
       conversations.sort((a, b) =>
           (b.updatedAt ?? DateTime(0)).compareTo(a.updatedAt ?? DateTime(0)));
       return conversations;
     });
   }
 
-  /// Real-time stream of messages in [conversationId], oldest first.
   Stream<List<MessageModel>> watchConversationMessages(String conversationId) {
     return _db
         .collection(AppConstants.messagesCollection)
@@ -423,13 +403,17 @@ class FirestoreService {
             snap.docs.map((d) => MessageModel.fromMap(d.data(), d.id)).toList());
   }
 
-  /// Send a text message and update the conversation's lastMessage / updatedAt.
   Future<void> sendTextMessage({
     required String conversationId,
     required String senderId,
     required String content,
   }) async {
     final batch = _db.batch();
+
+    // Detect if content is an image URL to show a friendly preview
+    final isImage = content.startsWith('http') &&
+        (content.contains('cloudinary') || content.contains('firebasestorage'));
+    final displayContent = isImage ? 'đã gửi một ảnh' : content;
 
     final msgDoc = _db.collection(AppConstants.messagesCollection).doc();
     batch.set(msgDoc, {
@@ -444,14 +428,51 @@ class FirestoreService {
         .collection(AppConstants.conversationsCollection)
         .doc(conversationId);
     batch.update(convRef, {
-      'lastMessage': content,
+      'lastMessage': displayContent,
+      'lastMessageSenderId': senderId,
+      'readBy': [senderId],
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
     await batch.commit();
   }
 
-  /// Send a reaction message (linked to a photo) and update the conversation.
+  Future<void> sendPhotoReplyMessage({
+    required String conversationId,
+    required String senderId,
+    required String content,
+    required String photoId,
+  }) async {
+    final batch = _db.batch();
+
+    final msgDoc = _db.collection(AppConstants.messagesCollection).doc();
+    batch.set(msgDoc, {
+      'conversationId': conversationId,
+      'senderId': senderId,
+      'content': content,
+      'type': 'photo_reply',
+      'photoId': photoId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    // Detect if reply content is an image URL
+    final isImage = content.startsWith('http') &&
+        (content.contains('cloudinary') || content.contains('firebasestorage'));
+    final displayContent = isImage ? 'một ảnh' : content;
+
+    final convRef = _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId);
+    batch.update(convRef, {
+      'lastMessage': 'Đã trả lời $displayContent',
+      'lastMessageSenderId': senderId,
+      'readBy': [senderId],
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+  }
+
   Future<void> sendReactionMessage({
     required String conversationId,
     required String senderId,
@@ -476,10 +497,29 @@ class FirestoreService {
         .doc(conversationId);
     batch.update(convRef, {
       'lastMessage': preview,
+      'lastMessageSenderId': senderId,
+      'readBy': [senderId],
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
     await batch.commit();
+    Future<void> markConversationAsRead(
+      String conversationId, String userId) async {
+    await _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId)
+        .update({
+      'readBy': FieldValue.arrayUnion([userId]),
+    });
   }
 }
-
+  Future<void> markConversationAsRead(
+      String conversationId, String userId) async {
+    await _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId)
+        .update({
+      'readBy': FieldValue.arrayUnion([userId]),
+    });
+  }
+}

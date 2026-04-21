@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../../auth/providers/auth_provider.dart';
+import '../../camera/providers/camera_provider.dart';
 import '../providers/reaction_provider.dart';
 import '../providers/message_provider.dart';
 import '../../../core/constants/app_colors.dart';
@@ -15,6 +18,7 @@ import '../../../shared/models/photo_model.dart';
 import '../../../shared/models/reaction_model.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/widgets/user_avatar.dart';
+import '../../notification/services/fcm_service.dart';
 
 class PhotoDetailScreen extends ConsumerWidget {
   final String photoId;
@@ -91,10 +95,13 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
       final fs = ref.read(firestoreServiceProvider);
       final convId =
           await fs.getOrCreateConversation(currentUserId, otherId);
-      await fs.sendTextMessage(
+      
+      // Use sendPhotoReplyMessage to link the message with the photo
+      await fs.sendPhotoReplyMessage(
         conversationId: convId,
         senderId: currentUserId,
         content: text,
+        photoId: widget.photo.id,
       );
       _msgController.clear();
     } catch (e) {
@@ -171,16 +178,14 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
 
         // ── Sender info overlay ───────────────────────────────────────────────
         Positioned(
-          bottom: 0,
+          bottom: 180, // Nâng lên để nằm trên các nút reaction
           left: 0,
           right: 0,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 60, 20, 48),
-            decoration: const BoxDecoration(
-              gradient: AppColors.photoOverlay,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: senderAsync.when(
               data: (sender) => Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Tapping the avatar opens the conversation
                   GestureDetector(
@@ -210,9 +215,11 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          sender?.displayUsername ?? 'Unknown',
-                          style: AppTextStyles.headlineSmall
-                              .copyWith(color: Colors.white),
+                          sender?.id == currentUserId
+                              ? 'You'
+                              : (sender?.displayUsername ?? 'Unknown'),
+                          style: AppTextStyles.bodyLarge
+                              .copyWith(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                         if (widget.photo.createdAt != null)
                           Text(
@@ -220,6 +227,25 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
                             style: AppTextStyles.bodySmall
                                 .copyWith(color: Colors.white70),
                           ),
+                        if (widget.photo.caption != null &&
+                            widget.photo.caption!.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            widget.photo.caption!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w400,
+                              shadows: [
+                                Shadow(
+                                  offset: Offset(0, 1),
+                                  blurRadius: 4.0,
+                                  color: Colors.black,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -288,7 +314,7 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
           ),
         ),
 
-        // ── Message input bar ─────────────────────────────────────────────────
+        // ── Interaction bar (Gallery upload + Messaging) ──────────────────────
         Positioned(
           bottom: 0,
           left: 0,
@@ -307,53 +333,80 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
             ),
             child: Row(
               children: [
-                // ── Text input ──────────────────────────────────────
-                Expanded(
-                  child: TextField(
-                    controller: _msgController,
-                    style: const TextStyle(color: Colors.white),
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(currentUserId),
-                    decoration: InputDecoration(
-                      hintText: 'Say something…',
-                      hintStyle: const TextStyle(color: Colors.white38),
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 0.12),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-
-                // ── Send button ─────────────────────────────────────
+                // ── Gallery Upload Button (Always visible) ───────────
                 GestureDetector(
-                  onTap: _sendingMsg
-                      ? null
-                      : () => _sendMessage(currentUserId),
+                  onTap: () async {
+                    final picker = ImagePicker();
+                    final XFile? image = await picker.pickImage(
+                      source: ImageSource.gallery,
+                      imageQuality: 80,
+                    );
+                    if (image != null && mounted) {
+                      ref.read(capturedFileProvider.notifier).state =
+                          File(image.path);
+                      context.push('/preview');
+                    }
+                  },
                   child: Container(
                     width: 44,
                     height: 44,
-                    decoration: const BoxDecoration(
-                      gradient: AppColors.primaryGradient,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                     ),
-                    child: _sendingMsg
-                        ? const Padding(
-                            padding: EdgeInsets.all(10),
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(
-                                    Colors.white)),
-                          )
-                        : const Icon(Iconsax.send_1,
-                            color: Colors.white, size: 20),
+                    child: const Icon(Iconsax.gallery,
+                        color: Colors.white, size: 20),
                   ),
                 ),
+
+                // ── Message input & Send (Only if not my photo) ──────
+                if (widget.photo.senderId != currentUserId) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _msgController,
+                      style: const TextStyle(color: Colors.white),
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(currentUserId),
+                      decoration: InputDecoration(
+                        hintText: 'Say something…',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.12),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _sendingMsg
+                        ? null
+                        : () => _sendMessage(currentUserId),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _sendingMsg
+                          ? const Padding(
+                              padding: EdgeInsets.all(10),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation(
+                                      Colors.white)),
+                            )
+                          : const Icon(Iconsax.send_1,
+                              color: Colors.white, size: 20),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

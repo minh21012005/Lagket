@@ -56,10 +56,18 @@ class FCMService {
     final notification = message.notification;
     if (notification == null) return;
 
+    String body = notification.body ?? '';
+
+    // Transform image URL to readable text in notification
+    if (body.startsWith('http') &&
+        (body.contains('cloudinary') || body.contains('firebasestorage'))) {
+      body = 'sent you a photo';
+    }
+
     _localNotifications.show(
       notification.hashCode,
       notification.title,
-      notification.body,
+      body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'lagket_channel',
@@ -74,6 +82,31 @@ class FCMService {
   }
 
   Future<String?> getToken() => _messaging.getToken();
+
+  // Show a local notification programmatically
+  Future<void> showLocalNotification({
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      'lagket_channel',
+      'Lagket Notifications',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+    const iosDetails = DarwinNotificationDetails();
+    const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+
+    await _localNotifications.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
+      details,
+      payload: payload,
+    );
+  }
 }
 
 /// Top-level background handler — must be outside any class

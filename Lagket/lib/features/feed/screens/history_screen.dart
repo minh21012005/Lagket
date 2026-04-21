@@ -1,12 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
 import '../providers/history_provider.dart';
 import '../providers/reaction_provider.dart';
 import '../providers/message_provider.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../camera/providers/camera_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firestore_service.dart';
@@ -528,10 +531,13 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
       final fs = ref.read(firestoreServiceProvider);
       final convId =
           await fs.getOrCreateConversation(widget.currentUserId, otherId);
-      await fs.sendTextMessage(
+      
+      // Use sendPhotoReplyMessage to link the message with the photo
+      await fs.sendPhotoReplyMessage(
         conversationId: convId,
         senderId: widget.currentUserId,
         content: text,
+        photoId: widget.photo.id,
       );
       _msgController.clear();
     } finally {
@@ -592,7 +598,10 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(sender?.displayUsername ?? 'Unknown',
+                    Text(
+                        sender?.id == widget.currentUserId
+                            ? 'You'
+                            : (sender?.displayUsername ?? 'Unknown'),
                         style: AppTextStyles.headlineSmall
                             .copyWith(color: Colors.white)),
                     if (widget.photo.createdAt != null)
@@ -672,7 +681,7 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
           ),
         ),
 
-        // Message panel
+        // ── Interaction bar (Gallery upload + Messaging) ──────────────────────
         Positioned(
           bottom: 0,
           left: 0,
@@ -692,7 +701,8 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (_showMessages)
+                if (_showMessages &&
+                    widget.photo.senderId != widget.currentUserId)
                   messagesAsync.when(
                     data: (msgs) => msgs.isEmpty
                         ? Padding(
@@ -745,61 +755,78 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
                   ),
                 Row(
                   children: [
+                    // ── Gallery Upload Button (Always visible) ───────
                     GestureDetector(
-                      onTap: () =>
-                          setState(() => _showMessages = !_showMessages),
-                      child: Icon(
-                        _showMessages
-                            ? Iconsax.message5
-                            : Iconsax.message,
-                        color: Colors.white70,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _msgController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Say something…',
-                          hintStyle:
-                              const TextStyle(color: Colors.white38),
-                          filled: true,
-                          fillColor:
-                              Colors.white.withValues(alpha: 0.12),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                        onSubmitted: (_) => _sendMessage(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: _sendingMsg ? null : _sendMessage,
+                      onTap: () async {
+                        final picker = ImagePicker();
+                        final XFile? image = await picker.pickImage(
+                          source: ImageSource.gallery,
+                          imageQuality: 80,
+                        );
+                        if (image != null && mounted) {
+                          ref.read(capturedFileProvider.notifier).state =
+                              File(image.path);
+                          context.push('/preview');
+                        }
+                      },
                       child: Container(
                         width: 40,
                         height: 40,
-                        decoration: const BoxDecoration(
-                          gradient: AppColors.primaryGradient,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: _sendingMsg
-                            ? const Padding(
-                                padding: EdgeInsets.all(10),
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation(
-                                        Colors.white)),
-                              )
-                            : const Icon(Iconsax.send_1,
-                                color: Colors.white, size: 18),
+                        child: const Icon(Iconsax.gallery,
+                            color: Colors.white, size: 20),
                       ),
                     ),
+
+                    // ── Messaging (Only if not my photo) ──────────────
+                    if (widget.photo.senderId != widget.currentUserId) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _msgController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Say something…',
+                            hintStyle:
+                                const TextStyle(color: Colors.white38),
+                            filled: true,
+                            fillColor: Colors.white.withValues(alpha: 0.12),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          onSubmitted: (_) => _sendMessage(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _sendingMsg ? null : _sendMessage,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: const BoxDecoration(
+                            gradient: AppColors.primaryGradient,
+                            shape: BoxShape.circle,
+                          ),
+                          child: _sendingMsg
+                              ? const Padding(
+                                  padding: EdgeInsets.all(10),
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation(
+                                          Colors.white)),
+                                )
+                              : const Icon(Iconsax.send_1,
+                                  color: Colors.white, size: 18),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -942,7 +969,10 @@ class _GridPhotoView extends ConsumerWidget {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          senderAsync.value?.displayUsername ?? '',
+                          senderAsync.value?.id ==
+                                  ref.watch(currentUserProvider).value?.id
+                              ? 'You'
+                              : (senderAsync.value?.displayUsername ?? ''),
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.caption
                               .copyWith(color: Colors.white),

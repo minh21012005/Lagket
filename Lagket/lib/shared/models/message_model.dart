@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Type of message stored in a conversation.
 enum MessageType {
   text,
-  reaction;
+  reaction,
+  photo_reply;
 
   static MessageType fromString(String v) =>
       MessageType.values.firstWhere((e) => e.name == v,
@@ -17,7 +18,7 @@ class MessageModel {
   final String content;
   final MessageType type;
 
-  /// Nullable – only set for reaction messages.
+  /// Nullable – set for reaction and photo_reply messages.
   final String? photoId;
   final DateTime? createdAt;
 

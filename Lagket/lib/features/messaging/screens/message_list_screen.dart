@@ -149,7 +149,9 @@ class _ConversationTile extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              otherUser?.displayUsername ?? 'Unknown',
+                              otherId == myId
+                                  ? 'You'
+                                  : (otherUser?.displayUsername ?? 'Unknown'),
                               style: AppTextStyles.labelLarge,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -171,13 +173,28 @@ class _ConversationTile extends ConsumerWidget {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              conversation.lastMessage.isEmpty
-                                  ? 'No messages yet'
-                                  : conversation.lastMessage,
+                              _formatLastMessage(
+                                conversation.lastMessage,
+                                conversation.lastMessageSenderId == myId,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.bodySmall.copyWith(
-                                color: AppColors.textSecondary,
+                                color: conversation.readBy.contains(myId)
+                                    ? AppColors.textSecondary
+                                    : Colors.white,
+                                fontWeight: conversation.readBy.contains(myId)
+                                    ? FontWeight.normal
+                                    : FontWeight.bold,
+                                shadows: !conversation.readBy.contains(myId)
+                                    ? [
+                                        Shadow(
+                                          color: AppColors.primary
+                                              .withValues(alpha: 0.5),
+                                          blurRadius: 8,
+                                        ),
+                                      ]
+                                    : null,
                               ),
                             ),
                           ),
@@ -196,6 +213,20 @@ class _ConversationTile extends ConsumerWidget {
         );
       },
     );
+  }
+
+  String _formatLastMessage(String msg, bool isMe) {
+    if (msg.isEmpty) return 'No messages yet';
+
+    String prefix = isMe ? 'You: ' : '';
+    String content = msg;
+
+    if (msg.startsWith('http') &&
+        (msg.contains('cloudinary') || msg.contains('firebasestorage'))) {
+      content = isMe ? 'sent a photo' : 'sent you a photo';
+    }
+
+    return '$prefix$content';
   }
 }
 

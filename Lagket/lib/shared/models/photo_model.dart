@@ -5,6 +5,7 @@ class PhotoModel {
   final String senderId;
   final List<String> receiverIds;
   final String imageUrl;
+  final String? caption;
   final DateTime? createdAt;
 
   const PhotoModel({
@@ -12,6 +13,7 @@ class PhotoModel {
     required this.senderId,
     required this.receiverIds,
     required this.imageUrl,
+    this.caption,
     this.createdAt,
   });
 
@@ -21,6 +23,7 @@ class PhotoModel {
       senderId: map['senderId'] ?? '',
       receiverIds: List<String>.from(map['receiverIds'] ?? []),
       imageUrl: map['imageUrl'] ?? '',
+      caption: map['caption'],
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
           : null,
@@ -32,6 +35,7 @@ class PhotoModel {
         'senderId': senderId,
         'receiverIds': receiverIds,
         'imageUrl': imageUrl,
+        'caption': caption,
         'createdAt': FieldValue.serverTimestamp(),
       };
 
@@ -40,6 +44,7 @@ class PhotoModel {
     String? senderId,
     List<String>? receiverIds,
     String? imageUrl,
+    String? caption,
     DateTime? createdAt,
   }) {
     return PhotoModel(
@@ -47,6 +52,7 @@ class PhotoModel {
       senderId: senderId ?? this.senderId,
       receiverIds: receiverIds ?? this.receiverIds,
       imageUrl: imageUrl ?? this.imageUrl,
+      caption: caption ?? this.caption,
       createdAt: createdAt ?? this.createdAt,
     );
   }

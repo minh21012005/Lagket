@@ -397,7 +397,7 @@ class FirestoreService {
     return _db
         .collection(AppConstants.messagesCollection)
         .where('conversationId', isEqualTo: conversationId)
-        .orderBy('createdAt', descending: false)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snap) =>
             snap.docs.map((d) => MessageModel.fromMap(d.data(), d.id)).toList());

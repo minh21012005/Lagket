@@ -36,23 +36,35 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     debugLogDiagnostics: false,
 
-    // Redirect unauthenticated users
+    // Redirect unauthenticated or unverified users
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
       
-      // Keep user on the requested route (which defaults to '/') while Firebase/Auth is resolving
+      // Keep user on the requested route while Firebase/Auth is resolving
       if (authState.isLoading) return null;
 
-      final isLoggedIn = authState.value != null;
+      final user = authState.value;
+      final isLoggedIn = user != null;
+      final isEmailVerified = user?.emailVerified ?? false;
       final location = state.matchedLocation;
 
-      final publicRoutes = ['/login', '/signup', '/verify', '/'];
+      final publicRoutes = ['/login', '/signup', '/verify', '/', '/forgot-password'];
       final isPublic = publicRoutes.contains(location);
 
+      // 1. If not logged in and trying to access private route -> login
       if (!isLoggedIn && !isPublic) return '/login';
-      if (isLoggedIn && (location == '/login' || location == '/signup')) {
+
+      // 2. If logged in but email NOT verified -> force to /verify
+      // This is necessary so they can actually see the verification instructions.
+      if (isLoggedIn && !isEmailVerified && location != '/verify' && location != '/login' && location != '/signup') {
+        return '/verify';
+      }
+
+      // 3. If logged in AND verified, prevent going to auth screens
+      if (isLoggedIn && isEmailVerified && (location == '/login' || location == '/signup' || location == '/verify')) {
         return '/camera';
       }
+
       return null;
     },
 

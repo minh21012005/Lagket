@@ -54,10 +54,13 @@ class MessageListScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  UserAvatar(
-                    avatarUrl: currentUser?.avatarUrl,
-                    username: currentUser?.displayUsername ?? '?',
-                    size: 38,
+                  GestureDetector(
+                    onTap: () => context.push('/profile'),
+                    child: UserAvatar(
+                      avatarUrl: currentUser?.avatarUrl,
+                      username: currentUser?.displayUsername ?? '?',
+                      size: 38,
+                    ),
                   ),
                 ],
               ),

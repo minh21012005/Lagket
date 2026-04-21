@@ -143,3 +143,6 @@ final capturedFileProvider = StateProvider<File?>((ref) => null);
 
 // Caption for the captured photo
 final captionProvider = StateProvider<String>((ref) => "");
+
+// Whether the photo is private
+final isPrivateProvider = StateProvider<bool>((ref) => false);

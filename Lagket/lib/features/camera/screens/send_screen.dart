@@ -31,17 +31,21 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   Future<void> _send() async {
     final file = ref.read(capturedFileProvider);
     final currentUser = ref.read(currentUserProvider).value;
+    final isPrivate = ref.read(isPrivateProvider);
     if (file == null || currentUser == null) return;
 
     setState(() => _isSending = true);
 
     try {
       final friends = ref.read(friendUsersProvider).value ?? [];
-      final receiverIds = _sendToAll
-          ? friends.map((f) => f.id).toList()
-          : _selectedIds.toList();
+      
+      // Nếu là ảnh private, chỉ gửi cho chính mình (hoặc list trống tùy logic Firestore)
+      // Ở đây ta dùng isPrivate flag của PhotoModel là chính.
+      final receiverIds = isPrivate 
+          ? [currentUser.id] 
+          : (_sendToAll ? friends.map((f) => f.id).toList() : _selectedIds.toList());
 
-      if (receiverIds.isEmpty) {
+      if (receiverIds.isEmpty && !isPrivate) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Select at least one friend to send to.')),
         );
@@ -65,17 +69,21 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         receiverIds: receiverIds,
         imageUrl: imageUrl,
         caption: caption.isNotEmpty ? caption : null,
+        isPrivate: isPrivate,
       );
       await ref.read(firestoreServiceProvider).createPhoto(photo);
 
       // Trigger upload success notification
       FCMService().showLocalNotification(
-        title: 'Moment Shared! 📸',
-        body: 'Your photo has been uploaded and shared with your friends.',
+        title: isPrivate ? 'Private Moment Saved! 🔒' : 'Moment Shared! 📸',
+        body: isPrivate 
+            ? 'Your private photo has been saved to your history.'
+            : 'Your photo has been uploaded and shared with your friends.',
       );
 
       // Clear state
       ref.read(capturedFileProvider.notifier).state = null;
+      ref.read(isPrivateProvider.notifier).state = false; // Reset private state
       ref.read(cameraNotifierProvider.notifier).clearCapture();
 
       if (mounted) {
@@ -102,6 +110,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   Widget build(BuildContext context) {
     final file = ref.watch(capturedFileProvider);
     final friendsAsync = ref.watch(friendUsersProvider);
+    final isPrivate = ref.watch(isPrivateProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -113,10 +122,34 @@ class _SendScreenState extends ConsumerState<SendScreen> {
               color: AppColors.textPrimary),
           onPressed: () => context.pop(),
         ),
-        title: Text('Send to', style: AppTextStyles.headlineMedium),
+        title: Text(isPrivate ? 'Private Post' : 'Send to', style: AppTextStyles.headlineMedium),
       ),
       body: Column(
         children: [
+          // Private Warning
+          if (isPrivate)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Iconsax.lock, color: Colors.blue, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'This AI-enhanced photo is private. Only you can see it in your history.',
+                      style: AppTextStyles.bodySmall.copyWith(color: Colors.blue),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Thumbnail
           if (file != null)
             Container(
@@ -132,14 +165,15 @@ class _SendScreenState extends ConsumerState<SendScreen> {
               ),
             ),
 
-          // Send to all toggle
-          _SwitchTile(
-            title: 'Send to all friends',
-            value: _sendToAll,
-            onChanged: (v) => setState(() => _sendToAll = v),
-          ),
+          // Send to all toggle (Only if not private)
+          if (!isPrivate)
+            _SwitchTile(
+              title: 'Send to all friends',
+              value: _sendToAll,
+              onChanged: (v) => setState(() => _sendToAll = v),
+            ),
 
-          if (!_sendToAll) ...[
+          if (!isPrivate && !_sendToAll) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
               child: Text('Select friends',

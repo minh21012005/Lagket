@@ -7,6 +7,7 @@ class PhotoModel {
   final String imageUrl;
   final String? caption;
   final DateTime? createdAt;
+  final bool isPrivate;
 
   const PhotoModel({
     required this.id,
@@ -15,6 +16,7 @@ class PhotoModel {
     required this.imageUrl,
     this.caption,
     this.createdAt,
+    this.isPrivate = false,
   });
 
   factory PhotoModel.fromMap(Map<String, dynamic> map, String id) {
@@ -27,6 +29,7 @@ class PhotoModel {
       createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
           : null,
+      isPrivate: map['isPrivate'] ?? false,
     );
   }
 
@@ -37,6 +40,7 @@ class PhotoModel {
         'imageUrl': imageUrl,
         'caption': caption,
         'createdAt': FieldValue.serverTimestamp(),
+        'isPrivate': isPrivate,
       };
 
   PhotoModel copyWith({
@@ -46,6 +50,7 @@ class PhotoModel {
     String? imageUrl,
     String? caption,
     DateTime? createdAt,
+    bool? isPrivate,
   }) {
     return PhotoModel(
       id: id ?? this.id,
@@ -54,6 +59,7 @@ class PhotoModel {
       imageUrl: imageUrl ?? this.imageUrl,
       caption: caption ?? this.caption,
       createdAt: createdAt ?? this.createdAt,
+      isPrivate: isPrivate ?? this.isPrivate,
     );
   }
 }

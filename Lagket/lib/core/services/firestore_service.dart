@@ -129,14 +129,22 @@ class FirestoreService {
 
     await for (final snap in friendsSnap) {
       final friendIds = snap.docs.map((d) => d.data()['friendId'] as String).toList();
-      final allIds = [currentUserId, ...friendIds];
 
       yield* _db
           .collection(AppConstants.photosCollection)
-          .where('senderId', whereIn: allIds)
           .orderBy('createdAt', descending: true)
           .snapshots()
-          .map((s) => s.docs.map((d) => PhotoModel.fromMap(d.data(), d.id)).toList());
+          .map((s) => s.docs
+              .map((d) => PhotoModel.fromMap(d.data(), d.id))
+              .where((photo) {
+                // Hiển thị nếu:
+                // 1. Là ảnh của mình (kể cả private)
+                // 2. Là ảnh của bạn bè và KHÔNG phải là private
+                if (photo.senderId == currentUserId) return true;
+                if (friendIds.contains(photo.senderId) && !photo.isPrivate) return true;
+                return false;
+              })
+              .toList());
     }
   }
 

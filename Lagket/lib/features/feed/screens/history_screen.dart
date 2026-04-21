@@ -1,10 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:gal/gal.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/reaction_provider.dart';
 import '../providers/message_provider.dart';
@@ -82,11 +86,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
   // ─── Filter label ──────────────────────────────────────────────────────────
 
   String _filterLabel(HistoryFilter f) {
-    return switch (f) {
+    String label = switch (f) {
       AllPhotosFilter() => 'All Photos',
       MyPhotosFilter() => 'My Photos',
       FriendPhotosFilter(:final friendName) => friendName,
     };
+
+    if (f.date != null) {
+      label += ' - ${DateFormatter.formatDate(f.date!)}';
+    }
+    return label;
   }
 
   @override
@@ -109,7 +118,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
                   IconButton(
                     icon: const Icon(Iconsax.arrow_left,
                         color: Colors.white),
-                    onPressed: () => context.pop(),
+                    onPressed: () {
+                      ref.read(historyFilterProvider.notifier).state = const AllPhotosFilter();
+                      context.pop();
+                    },
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -323,13 +335,17 @@ class _FilterSheetState extends State<_FilterSheet> {
             icon: Iconsax.gallery,
             label: 'All Photos',
             selected: widget.currentFilter is AllPhotosFilter,
-            onTap: () => widget.onSelected(const AllPhotosFilter()),
+            onTap: () => widget.onSelected(
+              AllPhotosFilter(date: widget.currentFilter.date),
+            ),
           ),
           _OptionTile(
             icon: Iconsax.user,
             label: 'My Photos',
             selected: widget.currentFilter is MyPhotosFilter,
-            onTap: () => widget.onSelected(const MyPhotosFilter()),
+            onTap: () => widget.onSelected(
+              MyPhotosFilter(date: widget.currentFilter.date),
+            ),
           ),
           _OptionTile(
             icon: Iconsax.people,
@@ -380,7 +396,10 @@ class _FilterSheetState extends State<_FilterSheet> {
                             : null,
                         onTap: () => widget.onSelected(
                           FriendPhotosFilter(
-                              friendId: f.id, friendName: f.displayUsername),
+                            friendId: f.id,
+                            friendName: f.displayUsername,
+                            date: widget.currentFilter.date,
+                          ),
                         ),
                       );
                     },
@@ -511,11 +530,68 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
   final _msgController = TextEditingController();
   bool _sendingMsg = false;
   bool _showMessages = false;
+  bool _isDownloading = false;
 
   @override
   void dispose() {
     _msgController.dispose();
     super.dispose();
+  }
+
+  Future<void> _downloadImage() async {
+    setState(() => _isDownloading = true);
+    try {
+      // 1. Download image to a temporary file
+      final tempDir = await getTemporaryDirectory();
+      final path = '${tempDir.path}/Lagket_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      await Dio().download(widget.photo.imageUrl, path);
+      
+      // 2. Save to gallery using Gal
+      await Gal.putImage(path);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo saved to gallery')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save photo: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
+  Future<void> _deletePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Delete Photo?', style: TextStyle(color: Colors.white)),
+        content: const Text('This will permanently delete this photo for everyone.',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await ref.read(firestoreServiceProvider).deletePhoto(widget.photo.id);
+      // If we're in single view, we might need to handle the UI state.
+      // Usually, the StreamProvider will update and the photo will disappear.
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -579,98 +655,100 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
           ),
         ),
 
-        // Sender info
+        // ── Sender Info, Caption & Reaction Summary ──────────────────────────
         Positioned(
-          bottom: 220,
+          bottom: 170,
           left: 16,
           right: 16,
-          child: senderAsync.when(
-            data: (sender) => Row(
-              children: [
-                UserAvatar(
-                  avatarUrl: sender?.avatarUrl,
-                  username: sender?.displayUsername ?? '?',
-                  size: 40,
-                  showBorder: true,
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. Sender info
+              senderAsync.when(
+                data: (sender) => Row(
                   children: [
-                    Text(
-                        sender?.id == widget.currentUserId
-                            ? 'You'
-                            : (sender?.displayUsername ?? 'Unknown'),
-                        style: AppTextStyles.headlineSmall
-                            .copyWith(color: Colors.white)),
-                    if (widget.photo.createdAt != null)
-                      Text(DateFormatter.formatDate(widget.photo.createdAt!),
-                          style: AppTextStyles.bodySmall
-                              .copyWith(color: Colors.white70)),
+                    UserAvatar(
+                      avatarUrl: sender?.avatarUrl,
+                      username: sender?.displayUsername ?? '?',
+                      size: 40,
+                      showBorder: true,
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                            sender?.id == widget.currentUserId
+                                ? 'You'
+                                : (sender?.displayUsername ?? 'Unknown'),
+                            style: AppTextStyles.headlineSmall
+                                .copyWith(color: Colors.white)),
+                        if (widget.photo.createdAt != null)
+                          Text(DateFormatter.formatDate(widget.photo.createdAt!),
+                              style: AppTextStyles.bodySmall
+                                  .copyWith(color: Colors.white70)),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-        ),
-
-        // Photo Caption
-        if (widget.photo.caption != null && widget.photo.caption!.isNotEmpty)
-          Positioned(
-            bottom: 220 - 45, // Đặt ngay dưới thông tin sender (khoảng cách phù hợp)
-            left: 16,
-            right: 16,
-            child: Text(
-              widget.photo.caption!,
-              style: AppTextStyles.bodyLarge.copyWith(
-                color: Colors.white,
-                shadows: [
-                  const Shadow(
-                    offset: Offset(0, 1),
-                    blurRadius: 3.0,
-                    color: Colors.black54,
-                  ),
-                ],
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
               ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
 
-        // Reaction summary
-        Positioned(
-          bottom: 174,
-          left: 16,
-          right: 16,
-          child: reactionsAsync.when(
-            data: (reactions) {
-              if (reactions.isEmpty) return const SizedBox.shrink();
-              final counts = <ReactionType, int>{};
-              for (final r in reactions) {
-                counts[r.type] = (counts[r.type] ?? 0) + 1;
-              }
-              return Wrap(
-                spacing: 6,
-                children: counts.entries.map((e) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text('${e.key.emoji} ${e.value}',
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 13)),
+              const SizedBox(height: 12),
+
+              // 2. Photo Caption
+              if (widget.photo.caption != null && widget.photo.caption!.isNotEmpty) ...[
+                Text(
+                  widget.photo.caption!,
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    color: Colors.white,
+                    shadows: [
+                      const Shadow(
+                        offset: Offset(0, 1),
+                        blurRadius: 3.0,
+                        color: Colors.black54,
+                      ),
+                    ],
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // 3. Reaction summary
+              reactionsAsync.when(
+                data: (reactions) {
+                  if (reactions.isEmpty) return const SizedBox.shrink();
+                  final counts = <ReactionType, int>{};
+                  for (final r in reactions) {
+                    counts[r.type] = (counts[r.type] ?? 0) + 1;
+                  }
+                  return Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: counts.entries.map((e) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text('${e.key.emoji} ${e.value}',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 13)),
+                      );
+                    }).toList(),
                   );
-                }).toList(),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+            ],
           ),
         ),
 
@@ -681,26 +759,46 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
           right: 0,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: ReactionType.values.map((type) {
-              final isActive = myReaction?.type == type;
-              return _AnimatedReactionBtn(
-                type: type,
-                isActive: isActive,
-                onTap: () async {
-                  final fs = ref.read(firestoreServiceProvider);
-                  if (isActive) {
-                    await fs.removeReaction(
-                        photoId: widget.photo.id,
-                        userId: widget.currentUserId);
-                  } else {
-                    await fs.upsertReaction(
-                        photoId: widget.photo.id,
-                        userId: widget.currentUserId,
-                        type: type);
-                  }
-                },
-              );
-            }).toList(),
+            children: [
+              ...ReactionType.values.map((type) {
+                final isActive = myReaction?.type == type;
+                return _AnimatedReactionBtn(
+                  type: type,
+                  isActive: isActive,
+                  onTap: () async {
+                    // Always set this reaction, don't toggle off
+                    if (!isActive) {
+                      await ref.read(firestoreServiceProvider).upsertReaction(
+                            photoId: widget.photo.id,
+                            userId: widget.currentUserId,
+                            type: type,
+                          );
+                    }
+                  },
+                );
+              }),
+              
+              // Cancel button (only shows if there's an active reaction)
+              if (myReaction != null) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () async {
+                    await ref.read(firestoreServiceProvider).removeReaction(
+                          photoId: widget.photo.id,
+                          userId: widget.currentUserId,
+                        );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
 
@@ -850,6 +948,57 @@ class _HistoryPhotoPageState extends ConsumerState<_HistoryPhotoPage> {
                         ),
                       ),
                     ],
+                    
+                    if (widget.photo.senderId == widget.currentUserId)
+                      const Spacer(),
+
+                    // ── Options Menu Button (Download/Delete) ──
+                    const SizedBox(width: 10),
+                    PopupMenuButton<String>(
+                      icon: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: _isDownloading 
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Iconsax.more, color: Colors.white, size: 20),
+                      ),
+                      onSelected: (val) {
+                        if (val == 'download') _downloadImage();
+                        if (val == 'delete') _deletePhoto();
+                      },
+                      color: AppColors.surface,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'download',
+                          child: Row(
+                            children: [
+                              Icon(Iconsax.document_download, color: Colors.white, size: 18),
+                              SizedBox(width: 12),
+                              Text('Save to Gallery', style: TextStyle(color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                        if (widget.photo.senderId == widget.currentUserId)
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Iconsax.trash, color: AppColors.error, size: 18),
+                                SizedBox(width: 12),
+                                Text('Delete Photo', style: TextStyle(color: AppColors.error)),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ],

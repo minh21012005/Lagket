@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import '../../notification/services/fcm_service.dart';
+import '../../feed/providers/history_provider.dart';
 import '../providers/camera_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -210,7 +211,11 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                   children: [
                     // History Button (Left)
                     GestureDetector(
-                      onTap: () => context.push('/history'),
+                      onTap: () {
+                        // Reset filter to All Photos (no date) when coming from camera
+                        ref.read(historyFilterProvider.notifier).state = const AllPhotosFilter();
+                        context.push('/history');
+                      },
                       child: Container(
                         width: 48,
                         height: 48,

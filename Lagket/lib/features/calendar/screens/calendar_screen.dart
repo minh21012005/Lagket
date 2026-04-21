@@ -139,7 +139,7 @@ class CalendarScreen extends ConsumerWidget {
 
 class _MonthSection extends StatelessWidget {
   final DateTime month;
-  final Map<DateTime, PhotoModel> photosByDate;
+  final Map<DateTime, List<PhotoModel>> photosByDate;
   const _MonthSection({required this.month, required this.photosByDate});
 
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -212,8 +212,8 @@ class _MonthSection extends StatelessWidget {
                 if (i < leadingBlanks) return const SizedBox.shrink();
                 final day = i - leadingBlanks + 1;
                 final date = DateTime(month.year, month.month, day);
-                final photo = photosByDate[date];
-                return _DayCell(date: date, photo: photo);
+                final photos = photosByDate[date] ?? [];
+                return _DayCell(date: date, photos: photos);
               },
             ),
           ),
@@ -231,10 +231,10 @@ class _MonthSection extends StatelessWidget {
 
 // ─── Day cell ─────────────────────────────────────────────────────────────────
 
-class _DayCell extends StatelessWidget {
+class _DayCell extends ConsumerWidget {
   final DateTime date;
-  final PhotoModel? photo;
-  const _DayCell({required this.date, this.photo});
+  final List<PhotoModel> photos;
+  const _DayCell({super.key, required this.date, required this.photos});
 
   bool get _isToday {
     final n = DateTime.now();
@@ -244,7 +244,7 @@ class _DayCell extends StatelessWidget {
   bool get _isFuture => date.isAfter(DateTime.now());
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (_isFuture) {
       return Center(
         child: Text(
@@ -256,22 +256,48 @@ class _DayCell extends StatelessWidget {
       );
     }
 
-    if (photo != null) {
+    if (photos.isNotEmpty) {
+      final lastPhoto = photos.first;
       return GestureDetector(
-        onTap: () => context.push('/photo/${photo!.id}'),
+        onTap: () {
+          ref.read(historyFilterProvider.notifier).state = AllPhotosFilter(date: date);
+          ref.read(historyViewModeProvider.notifier).state = HistoryViewMode.grid;
+          context.push('/history');
+        },
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: Stack(
             fit: StackFit.expand,
             children: [
               CachedNetworkImage(
-                imageUrl: photo!.imageUrl,
+                imageUrl: lastPhoto.imageUrl,
                 fit: BoxFit.cover,
                 placeholder: (_, __) =>
                     Container(color: AppColors.surfaceElevated),
                 errorWidget: (_, __, ___) =>
                     Container(color: AppColors.surfaceElevated),
               ),
+              // Multiple photos indicator
+              if (photos.length > 1)
+                Positioned(
+                  top: 2,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${photos.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
               // Day number overlay
               Positioned(
                 bottom: 2,

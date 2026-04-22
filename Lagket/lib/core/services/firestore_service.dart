@@ -37,6 +37,12 @@ class FirestoreService {
         .update(data);
   }
 
+  Future<void> updateFcmToken(String uid, String token) async {
+    await _db.collection(AppConstants.usersCollection).doc(uid).update({
+      'fcmToken': token,
+    });
+  }
+
   Future<List<UserModel>> searchUsersByUsername(String query) async {
     final snap = await _db
         .collection(AppConstants.usersCollection)
@@ -295,13 +301,14 @@ class FirestoreService {
     required String friendId,
   }) async {
     final batch = _db.batch();
-    
+
+    // 1. Delete friendship documents
     final snap1 = await _db
         .collection(AppConstants.friendshipsCollection)
         .where('userId', isEqualTo: userId)
         .where('friendId', isEqualTo: friendId)
         .get();
-    
+
     final snap2 = await _db
         .collection(AppConstants.friendshipsCollection)
         .where('userId', isEqualTo: friendId)
@@ -310,6 +317,30 @@ class FirestoreService {
 
     for (var d in snap1.docs) batch.delete(d.reference);
     for (var d in snap2.docs) batch.delete(d.reference);
+
+    // 2. Find and delete conversation
+    final participants = [userId, friendId]..sort();
+    final convSnap = await _db
+        .collection(AppConstants.conversationsCollection)
+        .where('participants', isEqualTo: participants)
+        .limit(1)
+        .get();
+
+    if (convSnap.docs.isNotEmpty) {
+      final convDoc = convSnap.docs.first;
+      
+      // Delete all messages in sub-collection first
+      final messagesSnap = await convDoc.reference
+          .collection(AppConstants.messagesCollection)
+          .get();
+      
+      for (var m in messagesSnap.docs) {
+        batch.delete(m.reference);
+      }
+
+      // Delete the conversation document itself
+      batch.delete(convDoc.reference);
+    }
 
     await batch.commit();
   }

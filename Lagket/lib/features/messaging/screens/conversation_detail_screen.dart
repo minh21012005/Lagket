@@ -121,14 +121,34 @@ class _ConversationDetailScreenState
   Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider).value;
     final currentUserId = currentUser?.id ?? '';
+
+    // Listen for conversation deletion to pop the screen
+    ref.listen(conversationListProvider, (previous, next) {
+      if (next.hasValue && !next.isLoading) {
+        final exists = next.value!.any((c) => c.id == widget.conversationId);
+        if (!exists) {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        }
+      }
+    });
+
     final messagesAsync =
         ref.watch(conversationDetailProvider(widget.conversationId));
 
     final convAsync = ref.watch(conversationListProvider);
-    final conv = convAsync.value?.firstWhere(
-      (c) => c.id == widget.conversationId,
-      orElse: () => throw StateError('not found'),
-    );
+    final conv = convAsync.value
+        ?.where((c) => c.id == widget.conversationId)
+        .firstOrNull;
+
+    if (conv == null && convAsync.hasValue && !convAsync.isLoading) {
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final otherId = conv?.otherParticipant(currentUserId) ?? '';
     final otherUserAsync = ref.watch(conversationUserProvider(otherId));
 

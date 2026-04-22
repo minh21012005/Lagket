@@ -32,10 +32,28 @@ class FriendsListScreen extends ConsumerWidget {
                 color: AppColors.primary),
             onPressed: () => context.push('/friends/add'),
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_active_outlined,
-                color: AppColors.textPrimary),
-            onPressed: () => context.push('/friends/requests'),
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_active_outlined,
+                    color: AppColors.textPrimary),
+                onPressed: () => context.push('/friends/requests'),
+              ),
+              if (ref.watch(incomingRequestsProvider).value?.isNotEmpty ?? false)
+                Positioned(
+                  right: 12,
+                  top: 12,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.background, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

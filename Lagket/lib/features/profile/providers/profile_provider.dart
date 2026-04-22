@@ -32,31 +32,32 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
   ProfileNotifier(this._fs, this._storage, this._userId)
       : super(const ProfileState());
 
-  Future<bool> updateUsername(String username) async {
+  Future<bool> updateProfile({required String username, File? avatarFile}) async {
+    if (!mounted) return false;
     state = state.copyWith(isLoading: true, error: null, saved: false);
     try {
-      await _fs.updateUser(_userId, {
+      final Map<String, dynamic> updates = {
         'username': username.toLowerCase().trim(),
         'displayUsername': username.trim(),
-      });
-      state = state.copyWith(isLoading: false, saved: true);
-      return true;
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      return false;
-    }
-  }
+      };
 
-  Future<bool> updateAvatar(File imageFile) async {
-    state = state.copyWith(isLoading: true, error: null, saved: false);
-    try {
-      final url = await _storage.uploadAvatar(
-          file: imageFile, userId: _userId);
-      await _fs.updateUser(_userId, {'avatarUrl': url});
-      state = state.copyWith(isLoading: false, saved: true);
+      if (avatarFile != null) {
+        final url = await _storage.uploadAvatar(file: avatarFile, userId: _userId);
+        updates['avatarUrl'] = '$url?t=${DateTime.now().millisecondsSinceEpoch}';
+      }
+
+      await _fs.updateUser(_userId, updates);
+      
+      // If the notifier is still mounted, update the state.
+      // If it's already disposed (because the screen closed), just return success.
+      if (mounted) {
+        state = state.copyWith(isLoading: false, saved: true);
+      }
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      if (mounted) {
+        state = state.copyWith(isLoading: false, error: e.toString());
+      }
       return false;
     }
   }
@@ -66,10 +67,12 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
 
 final profileNotifierProvider =
     StateNotifierProvider<ProfileNotifier, ProfileState>((ref) {
-  final user = ref.watch(currentUserProvider).value;
+  // Only watch the ID to avoid rebuilding the notifier when other fields (like avatarUrl) change
+  final userId = ref.watch(currentUserProvider.select((u) => u.value?.id)) ?? '';
+  
   return ProfileNotifier(
     ref.watch(firestoreServiceProvider),
     StorageService(),
-    user?.id ?? '',
+    userId,
   );
 });

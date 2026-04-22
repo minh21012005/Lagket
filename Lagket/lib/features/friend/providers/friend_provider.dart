@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../notification/services/fcm_service.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../shared/models/friendship_model.dart';
 import '../../../shared/models/friend_request_model.dart';
@@ -99,6 +100,15 @@ class FriendNotifier extends StateNotifier<FriendState> {
         fromUserId: request.fromUserId,
         toUserId: request.toUserId,
       );
+
+      // Fetch the other user's info to show a nice notification
+      final otherUser = await _fs.getUser(request.fromUserId);
+      if (otherUser != null) {
+        await FCMService().showLocalNotification(
+          title: 'New Friend!',
+          body: 'You and ${otherUser.displayUsername} are now friends!',
+        );
+      }
 
       state = state.copyWith(isLoading: false);
     } catch (e) {

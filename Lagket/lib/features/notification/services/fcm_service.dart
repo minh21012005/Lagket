@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../../../core/services/firestore_service.dart';
 
 class FCMService {
   static final FCMService _instance = FCMService._internal();
@@ -37,7 +38,7 @@ class FCMService {
     // Background message handler is registered at top-level (main.dart)
   }
 
-  Future<void> requestPermissionsAndToken() async {
+  Future<void> requestPermissionsAndToken(String userId) async {
     // Request permission (may prompt user via OS)
     await _messaging.requestPermission(
       alert: true,
@@ -47,9 +48,11 @@ class FCMService {
 
     // Get FCM token
     final token = await _messaging.getToken();
-    // TODO: save token to Firestore for this user
-    // ignore: avoid_print
-    print('FCM Token: \$token');
+    if (token != null) {
+      await FirestoreService().updateFcmToken(userId, token);
+      // ignore: avoid_print
+      print('FCM Token saved for $userId: $token');
+    }
   }
 
   void _handleForeground(RemoteMessage message) {

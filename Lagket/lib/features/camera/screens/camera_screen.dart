@@ -6,6 +6,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../notification/services/fcm_service.dart';
 import '../../feed/providers/history_provider.dart';
 import '../providers/camera_provider.dart';
@@ -28,7 +29,10 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initCamera();
       if (!kIsWeb) {
-        FCMService().requestPermissionsAndToken();
+        final userId = ref.read(currentUserProvider).value?.id;
+        if (userId != null) {
+          FCMService().requestPermissionsAndToken(userId);
+        }
       }
     });
   }

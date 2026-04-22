@@ -103,6 +103,31 @@ class AppShell extends ConsumerWidget {
       }
     });
 
+    // ─── Global Friend Accepted Listener ─────────────────────────────────────
+    ref.listen(friendshipsProvider, (previous, next) {
+      if (next.hasValue) {
+        final newFriends = next.value ?? [];
+        final oldFriends = previous?.value ?? [];
+
+        if (newFriends.length > oldFriends.length) {
+          // Find all IDs that are in new list but not in old list
+          final oldIds = oldFriends.map((f) => f.friendId).toSet();
+          final newlyAdded = newFriends.where((f) => !oldIds.contains(f.friendId));
+
+          for (final friendObj in newlyAdded) {
+            ref.read(conversationUserProvider(friendObj.friendId)).whenData((friend) {
+              if (friend != null) {
+                FCMService().showLocalNotification(
+                  title: 'New Friend!',
+                  body: 'You and ${friend.displayUsername} are now friends!',
+                );
+              }
+            });
+          }
+        }
+      }
+    });
+
     // ─── Global Reaction Listener ───────────────────────────────────────────
     // We listen to all photos sent by the user to detect new reactions.
     final myPhotos = ref.watch(historyPhotosProvider).value ?? [];

@@ -37,6 +37,12 @@ class FirestoreService {
         .update(data);
   }
 
+  Future<void> updateFcmToken(String uid, String token) async {
+    await _db.collection(AppConstants.usersCollection).doc(uid).update({
+      'fcmToken': token,
+    });
+  }
+
   Future<List<UserModel>> searchUsersByUsername(String query) async {
     final snap = await _db
         .collection(AppConstants.usersCollection)

@@ -155,11 +155,20 @@ class _UserSearchTile extends ConsumerStatefulWidget {
 }
 
 class _UserSearchTileState extends ConsumerState<_UserSearchTile> {
-  bool _sent = false;
+  bool _localLoading = false;
 
   @override
   Widget build(BuildContext context) {
-    final friendState = ref.watch(friendNotifierProvider);
+    // Theo dõi trạng thái kết bạn từ providers
+    final friendships = ref.watch(friendshipsProvider).value ?? [];
+    final outgoing = ref.watch(outgoingRequestsProvider).value ?? [];
+    final incoming = ref.watch(incomingRequestsProvider).value ?? [];
+
+    final isFriend = friendships.any((f) => f.friendId == widget.user.id);
+    final hasSentRequest =
+        outgoing.any((r) => r.toUserId == widget.user.id);
+    final hasReceivedRequest =
+        incoming.any((r) => r.fromUserId == widget.user.id);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -188,25 +197,50 @@ class _UserSearchTileState extends ConsumerState<_UserSearchTile> {
               ],
             ),
           ),
-          _sent
-              ? const Icon(Iconsax.tick_circle,
-                  color: AppColors.success, size: 24)
-              : SizedBox(
-                  height: 36,
-                  width: 90,
-                  child: AppButton(
-                    label: 'Add',
-                    height: 36,
-                    borderRadius: 10,
-                    isLoading: friendState.isLoading,
-                    onPressed: () async {
-                      final ok = await ref
-                          .read(friendNotifierProvider.notifier)
-                          .sendRequest(widget.user.id);
-                      if (ok && mounted) setState(() => _sent = true);
-                    },
-                  ),
-                ),
+          if (isFriend)
+            const Icon(Iconsax.user_tick,
+                color: AppColors.primary, size: 24)
+          else if (hasSentRequest)
+            const Icon(Iconsax.tick_circle,
+                color: AppColors.success, size: 24)
+          else if (hasReceivedRequest)
+            SizedBox(
+              height: 36,
+              width: 90,
+              child: AppButton(
+                label: 'Accept',
+                height: 36,
+                borderRadius: 10,
+                isLoading: _localLoading,
+                onPressed: () async {
+                  setState(() => _localLoading = true);
+                  final request = incoming.firstWhere(
+                      (r) => r.fromUserId == widget.user.id);
+                  await ref
+                      .read(friendNotifierProvider.notifier)
+                      .acceptRequest(request);
+                  if (mounted) setState(() => _localLoading = false);
+                },
+              ),
+            )
+          else
+            SizedBox(
+              height: 36,
+              width: 90,
+              child: AppButton(
+                label: 'Add',
+                height: 36,
+                borderRadius: 10,
+                isLoading: _localLoading,
+                onPressed: () async {
+                  setState(() => _localLoading = true);
+                  await ref
+                      .read(friendNotifierProvider.notifier)
+                      .sendRequest(widget.user.id);
+                  if (mounted) setState(() => _localLoading = false);
+                },
+              ),
+            ),
         ],
       ),
     );

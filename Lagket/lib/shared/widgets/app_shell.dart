@@ -9,6 +9,7 @@ import '../../features/messaging/providers/messaging_provider.dart';
 import '../../features/feed/providers/feed_provider.dart';
 import '../../features/feed/providers/history_provider.dart';
 import '../../features/feed/providers/reaction_provider.dart';
+import '../../features/friend/providers/friend_provider.dart';
 import '../../features/notification/services/fcm_service.dart';
 import '../../shared/models/message_model.dart';
 import '../../shared/models/reaction_model.dart';
@@ -85,6 +86,23 @@ class AppShell extends ConsumerWidget {
       }
     });
 
+    // ─── Global Friend Request Listener ──────────────────────────────────────
+    ref.listen(incomingRequestsProvider, (previous, next) {
+      if (next.hasValue && previous?.hasValue == true) {
+        final newRequests = next.value!;
+        final oldRequests = previous!.value!;
+        if (newRequests.length > oldRequests.length) {
+          final latest = newRequests.first;
+          ref.read(conversationUserProvider(latest.fromUserId)).whenData((sender) {
+            FCMService().showLocalNotification(
+              title: 'New Friend Request',
+              body: '${sender?.displayUsername ?? 'Someone'} wants to be your friend!',
+            );
+          });
+        }
+      }
+    });
+
     // ─── Global Reaction Listener ───────────────────────────────────────────
     // We listen to all photos sent by the user to detect new reactions.
     final myPhotos = ref.watch(historyPhotosProvider).value ?? [];
@@ -92,20 +110,30 @@ class AppShell extends ConsumerWidget {
       ref.listen(reactionsProvider(photo.id), (previous, next) {
         if (next is AsyncData<List<ReactionModel>> &&
             previous is AsyncData<List<ReactionModel>>) {
-          final newReactions = next.value;
-          final oldReactions = previous.value;
+          final newReactions = next.value!;
+          final oldReactions = previous.value!;
 
-          if (newReactions.length > oldReactions.length) {
-            final latest = newReactions.last;
-            // Only notify if someone ELSE reacted to MY photo
-            if (latest.userId != currentUserId) {
-              ref.read(conversationUserProvider(latest.userId)).whenData((sender) {
-                FCMService().showLocalNotification(
-                  title: '${sender?.displayUsername ?? 'Someone'} reacted ${latest.type.emoji}',
-                  body: 'to your photo',
-                );
-              });
-            }
+          // Kiểm tra xem có react mới hoặc react thay đổi không
+          // So sánh dựa trên sự khác biệt về số lượng hoặc thay đổi react của người dùng gần nhất
+          bool hasNewOrUpdated = newReactions.length > oldReactions.length;
+          
+          ReactionModel? latest;
+          if (newReactions.isNotEmpty) {
+             latest = newReactions.last;
+             // Nếu số lượng bằng nhau nhưng reaction mới nhất khác loại với cái cũ nhất trong danh sách
+             // thì coi như có cập nhật.
+             if (oldReactions.isNotEmpty && latest.type != oldReactions.last.type) {
+               hasNewOrUpdated = true;
+             }
+          }
+
+          if (hasNewOrUpdated && latest != null && latest.userId != currentUserId) {
+            ref.read(conversationUserProvider(latest.userId)).whenData((sender) {
+              FCMService().showLocalNotification(
+                title: '${sender?.displayUsername ?? 'Someone'} reacted ${latest!.type.emoji}',
+                body: 'to your photo',
+              );
+            });
           }
         }
       });

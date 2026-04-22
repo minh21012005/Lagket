@@ -81,6 +81,7 @@ class FriendNotifier extends StateNotifier<FriendState> {
 
       await _fs.createFriendRequest(
           fromUserId: _currentUserId, toUserId: toUserId);
+
       state = state.copyWith(isLoading: false);
       return true;
     } catch (e) {
@@ -98,6 +99,7 @@ class FriendNotifier extends StateNotifier<FriendState> {
         fromUserId: request.fromUserId,
         toUserId: request.toUserId,
       );
+
       state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

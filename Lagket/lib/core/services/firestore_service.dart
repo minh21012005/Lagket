@@ -49,49 +49,149 @@ class FirestoreService {
         .toList();
   }
 
-  // ─── Photos ─────────────────────────────────────────────────────────────────
+  // ─── Photos ────────────────────────────────────────────────────────────────
 
-  Future<String> createPhoto(PhotoModel photo) async {
-    final doc = _db.collection(AppConstants.photosCollection).doc();
-    final model = photo.copyWith(id: doc.id);
-    await doc.set(model.toMap());
-    return doc.id;
-  }
-
-  Stream<List<PhotoModel>> watchFeed(String userId) {
+  Stream<List<PhotoModel>> watchSentPhotos(String userId) {
     return _db
         .collection(AppConstants.photosCollection)
-        .where('receiverIds', arrayContains: userId)
+        .where('senderId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
-        .limit(AppConstants.feedPageSize)
         .snapshots()
         .map((snap) =>
             snap.docs.map((d) => PhotoModel.fromMap(d.data(), d.id)).toList());
   }
 
-  Future<PhotoModel?> getPhoto(String photoId) async {
-    final doc = await _db
+  Future<int> getSentPhotoCount(String userId) async {
+    final snap = await _db
         .collection(AppConstants.photosCollection)
-        .doc(photoId)
+        .where('senderId', isEqualTo: userId)
+        .count()
         .get();
-    if (!doc.exists) return null;
-    return PhotoModel.fromMap(doc.data()!, doc.id);
+    return snap.count ?? 0;
   }
 
-  // ─── Friends ─────────────────────────────────────────────────────────────────
+  Stream<List<PhotoModel>> watchSentPhotosForYear(String userId, int year) {
+    final start = DateTime(year, 1, 1);
+    final end = DateTime(year, 12, 31, 23, 59, 59);
 
-  Future<void> createFriendRequest({
-    required String fromUserId,
-    required String toUserId,
+    return _db
+        .collection(AppConstants.photosCollection)
+        .where('senderId', isEqualTo: userId)
+        .where('createdAt', isGreaterThanOrEqualTo: start)
+        .where('createdAt', isLessThanOrEqualTo: end)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => PhotoModel.fromMap(d.data(), d.id)).toList());
+  }
+
+  Future<String> createPhoto(PhotoModel photo) async {
+    final doc = _db.collection(AppConstants.photosCollection).doc();
+    final newPhoto = photo.copyWith(id: doc.id);
+    await doc.set(newPhoto.toMap());
+    return doc.id;
+  }
+
+  Future<void> deletePhoto(String photoId) async {
+    // 1. Delete the photo document
+    await _db.collection(AppConstants.photosCollection).doc(photoId).delete();
+
+    // 2. Delete reactions associated with this photo
+    final reactions = await _db
+        .collection(AppConstants.reactionsCollection)
+        .where('photoId', isEqualTo: photoId)
+        .get();
+    
+    final batch = _db.batch();
+    for (var doc in reactions.docs) {
+      batch.delete(doc.reference);
+    }
+    
+    // 3. Delete reply messages associated with this photo
+    final messages = await _db
+        .collectionGroup(AppConstants.messagesCollection)
+        .where('photoId', isEqualTo: photoId)
+        .get();
+    for (var doc in messages.docs) {
+      batch.delete(doc.reference);
+    }
+
+    await batch.commit();
+  }
+
+  // ─── Feed ──────────────────────────────────────────────────────────────────
+
+  Stream<List<PhotoModel>> watchFeed(String currentUserId) async* {
+    final friendsSnap = _db
+        .collection(AppConstants.friendshipsCollection)
+        .where('userId', isEqualTo: currentUserId)
+        .snapshots();
+
+    await for (final snap in friendsSnap) {
+      final friendIds = snap.docs.map((d) => d.data()['friendId'] as String).toList();
+
+      yield* _db
+          .collection(AppConstants.photosCollection)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => PhotoModel.fromMap(d.data(), d.id))
+              .where((photo) {
+                // Hiển thị nếu:
+                // 1. Là ảnh của mình (kể cả private)
+                // 2. Là ảnh của bạn bè và KHÔNG phải là private
+                if (photo.senderId == currentUserId) return true;
+                if (friendIds.contains(photo.senderId) && !photo.isPrivate) return true;
+                return false;
+              })
+              .toList());
+    }
+  }
+
+  // ─── Reactions ─────────────────────────────────────────────────────────────
+
+  Stream<List<ReactionModel>> watchReactions(String photoId) {
+    return _db
+        .collection(AppConstants.reactionsCollection)
+        .where('photoId', isEqualTo: photoId)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => ReactionModel.fromMap(d.data(), d.id)).toList());
+  }
+
+  Future<void> upsertReaction({
+    required String photoId,
+    required String userId,
+    required ReactionType type,
   }) async {
-    final doc = _db.collection(AppConstants.friendRequestsCollection).doc();
-    await doc.set({
-      'id': doc.id,
-      'fromUserId': fromUserId,
-      'toUserId': toUserId,
-      'status': 'pending',
+    final id = '${photoId}_$userId';
+    await _db.collection(AppConstants.reactionsCollection).doc(id).set({
+      'id': id,
+      'photoId': photoId,
+      'userId': userId,
+      'type': type.name,
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> removeReaction({
+    required String photoId,
+    required String userId,
+  }) async {
+    final id = '${photoId}_$userId';
+    await _db.collection(AppConstants.reactionsCollection).doc(id).delete();
+  }
+
+  // ─── Friends & Requests ─────────────────────────────────────────────────────
+
+  Stream<List<FriendshipModel>> watchFriendships(String userId) {
+    return _db
+        .collection(AppConstants.friendshipsCollection)
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => FriendshipModel.fromMap(d.data(), d.id))
+            .toList());
   }
 
   Stream<List<FriendRequestModel>> watchIncomingRequests(String userId) {
@@ -119,20 +219,18 @@ class FirestoreService {
 
   Future<void> respondToFriendRequest({
     required String requestId,
-    required String status, // 'accepted' | 'rejected'
+    required String status,
     required String fromUserId,
     required String toUserId,
   }) async {
     final batch = _db.batch();
 
-    // Update request status
     batch.update(
       _db.collection(AppConstants.friendRequestsCollection).doc(requestId),
       {'status': status},
     );
 
     if (status == 'accepted') {
-      // Create both-direction friendship docs
       final f1 = _db.collection(AppConstants.friendshipsCollection).doc();
       final f2 = _db.collection(AppConstants.friendshipsCollection).doc();
 
@@ -154,46 +252,25 @@ class FirestoreService {
     await batch.commit();
   }
 
-  Stream<List<FriendshipModel>> watchFriendships(String userId) {
-    return _db
-        .collection(AppConstants.friendshipsCollection)
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => FriendshipModel.fromMap(d.data(), d.id))
-            .toList());
-  }
-
-  Future<void> removeFriendship({
-    required String userId,
-    required String friendId,
+  Future<void> createFriendRequest({
+    required String fromUserId,
+    required String toUserId,
   }) async {
-    final batch = _db.batch();
-
-    final q1 = await _db
-        .collection(AppConstants.friendshipsCollection)
-        .where('userId', isEqualTo: userId)
-        .where('friendId', isEqualTo: friendId)
-        .get();
-
-    final q2 = await _db
-        .collection(AppConstants.friendshipsCollection)
-        .where('userId', isEqualTo: friendId)
-        .where('friendId', isEqualTo: userId)
-        .get();
-
-    for (final d in [...q1.docs, ...q2.docs]) {
-      batch.delete(d.reference);
-    }
-
-    await batch.commit();
+    final id = '${fromUserId}_$toUserId';
+    await _db.collection(AppConstants.friendRequestsCollection).doc(id).set({
+      'id': id,
+      'fromUserId': fromUserId,
+      'toUserId': toUserId,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
-  Future<bool> areFriends(String userId, String otherUserId) async {
+  Future<bool> areFriends(String user1, String user2) async {
     final snap = await _db
         .collection(AppConstants.friendshipsCollection)
-        .where('userId', isEqualTo: userId)
-        .where('friendId', isEqualTo: otherUserId)
+        .where('userId', isEqualTo: user1)
+        .where('friendId', isEqualTo: user2)
         .limit(1)
         .get();
     return snap.docs.isNotEmpty;
@@ -213,194 +290,90 @@ class FirestoreService {
     return snap.docs.isNotEmpty;
   }
 
-  // ─── History ──────────────────────────────────────────────────────────────────
-
-  /// Combined history stream: sent + received, deduplicated, sorted newest first.
-  Stream<List<PhotoModel>> watchCombinedHistory(String userId) {
-    final col = _db.collection(AppConstants.photosCollection);
-
-    final receivedStream = col
-        .where('receiverIds', arrayContains: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(AppConstants.feedPageSize)
-        .snapshots();
-
-    final sentStream = col
-        .where('senderId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(AppConstants.feedPageSize)
-        .snapshots();
-
-    return _mergeTwoPhotoStreams(sentStream, receivedStream);
-  }
-
-  Stream<List<PhotoModel>> _mergeTwoPhotoStreams(
-    Stream<QuerySnapshot<Map<String, dynamic>>> a,
-    Stream<QuerySnapshot<Map<String, dynamic>>> b,
-  ) async* {
-    List<PhotoModel> latestA = [];
-    List<PhotoModel> latestB = [];
-    bool aReady = false;
-    bool bReady = false;
-
-    final controller = StreamController<List<PhotoModel>>.broadcast();
-
-    a.listen((snap) {
-      latestA = snap.docs.map((d) => PhotoModel.fromMap(d.data(), d.id)).toList();
-      aReady = true;
-      if (bReady) controller.add(_mergePhotos(latestA, latestB));
-    });
-
-    b.listen((snap) {
-      latestB = snap.docs.map((d) => PhotoModel.fromMap(d.data(), d.id)).toList();
-      bReady = true;
-      if (aReady) controller.add(_mergePhotos(latestA, latestB));
-    });
-
-    yield* controller.stream;
-  }
-
-  List<PhotoModel> _mergePhotos(List<PhotoModel> a, List<PhotoModel> b) {
-    final map = <String, PhotoModel>{};
-    for (final p in [...a, ...b]) {
-      map[p.id] = p;
-    }
-    final merged = map.values.toList();
-    merged.sort((x, y) {
-      if (x.createdAt == null) return 1;
-      if (y.createdAt == null) return -1;
-      return y.createdAt!.compareTo(x.createdAt!);
-    });
-    return merged;
-  }
-
-  Stream<List<PhotoModel>> watchSentPhotosForYear(String userId, int year) {
-    final start = Timestamp.fromDate(DateTime(year));
-    final end = Timestamp.fromDate(DateTime(year + 1));
-    return _db
-        .collection(AppConstants.photosCollection)
-        .where('senderId', isEqualTo: userId)
-        .where('createdAt', isGreaterThanOrEqualTo: start)
-        .where('createdAt', isLessThan: end)
-        .orderBy('createdAt', descending: false)
-        .snapshots()
-        .map((s) =>
-            s.docs.map((d) => PhotoModel.fromMap(d.data(), d.id)).toList());
-  }
-
-  Future<int> getSentPhotoCount(String userId) async {
-    final snap = await _db
-        .collection(AppConstants.photosCollection)
-        .where('senderId', isEqualTo: userId)
-        .count()
-        .get();
-    return snap.count ?? 0;
-  }
-
-  // ─── Reactions ────────────────────────────────────────────────────────────────
-
-  Future<void> upsertReaction({
-    required String photoId,
+  Future<void> removeFriendship({
     required String userId,
-    required ReactionType type,
+    required String friendId,
   }) async {
-    final docId = '${photoId}_$userId';
-    await _db.collection(AppConstants.reactionsCollection).doc(docId).set({
-      'photoId': photoId,
-      'userId': userId,
-      'type': type.name,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+    final batch = _db.batch();
+    
+    final snap1 = await _db
+        .collection(AppConstants.friendshipsCollection)
+        .where('userId', isEqualTo: userId)
+        .where('friendId', isEqualTo: friendId)
+        .get();
+    
+    final snap2 = await _db
+        .collection(AppConstants.friendshipsCollection)
+        .where('userId', isEqualTo: friendId)
+        .where('friendId', isEqualTo: userId)
+        .get();
+
+    for (var d in snap1.docs) batch.delete(d.reference);
+    for (var d in snap2.docs) batch.delete(d.reference);
+
+    await batch.commit();
   }
 
-  Future<void> removeReaction({required String photoId, required String userId}) async {
-    final docId = '${photoId}_$userId';
-    await _db.collection(AppConstants.reactionsCollection).doc(docId).delete();
-  }
-
-  Stream<List<ReactionModel>> watchReactions(String photoId) {
+  Stream<List<UserModel>> watchFriends(String userId) {
     return _db
-        .collection(AppConstants.reactionsCollection)
-        .where('photoId', isEqualTo: photoId)
+        .collection(AppConstants.friendshipsCollection)
+        .where('userId', isEqualTo: userId)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => ReactionModel.fromMap(d.data(), d.id)).toList());
-  }
-
-  // ─── Messages ────────────────────────────────────────────────────────────────
-
-  Future<void> addMessage({
-    required String photoId,
-    required String senderId,
-    required String content,
-  }) async {
-    final doc = _db.collection(AppConstants.messagesCollection).doc();
-    await doc.set({
-      'id': doc.id,
-      'photoId': photoId,
-      'senderId': senderId,
-      'content': content,
-      'createdAt': FieldValue.serverTimestamp(),
+        .asyncMap((snap) async {
+      final friends = <UserModel>[];
+      for (final doc in snap.docs) {
+        final friendId = doc.data()['friendId'] as String;
+        final user = await getUser(friendId);
+        if (user != null) friends.add(user);
+      }
+      return friends;
     });
   }
 
-  Stream<List<MessageModel>> watchMessages(String photoId) {
+  // ─── Messaging ─────────────────────────────────────────────────────────────
+
+  Stream<List<ConversationModel>> watchConversations(String userId) {
     return _db
+        .collection(AppConstants.conversationsCollection)
+        .where('participants', arrayContains: userId)
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => ConversationModel.fromMap(d.data(), d.id))
+            .toList());
+  }
+
+  Stream<List<MessageModel>> watchConversationMessages(String conversationId) {
+    return _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId)
         .collection(AppConstants.messagesCollection)
-        .where('photoId', isEqualTo: photoId)
-        .orderBy('createdAt', descending: false)
+        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snap) =>
             snap.docs.map((d) => MessageModel.fromMap(d.data(), d.id)).toList());
   }
 
-  // ─── Conversations ────────────────────────────────────────────────────────────
-
-  Future<String> getOrCreateConversation(String userA, String userB) async {
-    final participants = [userA, userB]..sort();
-
+  Future<String> getOrCreateConversation(String user1, String user2) async {
+    final participants = [user1, user2]..sort();
     final snap = await _db
         .collection(AppConstants.conversationsCollection)
         .where('participants', isEqualTo: participants)
         .limit(1)
         .get();
 
-    if (snap.docs.isNotEmpty) {
-      return snap.docs.first.id;
-    }
+    if (snap.docs.isNotEmpty) return snap.docs.first.id;
 
     final doc = _db.collection(AppConstants.conversationsCollection).doc();
     await doc.set({
+      'id': doc.id,
       'participants': participants,
       'lastMessage': '',
+      'lastMessageSenderId': '',
+      'readBy': [user1, user2],
       'updatedAt': FieldValue.serverTimestamp(),
     });
     return doc.id;
-  }
-
-  Stream<List<ConversationModel>> watchConversations(String userId) {
-    return _db
-        .collection(AppConstants.conversationsCollection)
-        .where('participants', arrayContains: userId)
-        .snapshots()
-        .map((snap) {
-      final conversations = snap.docs
-          .map((d) => ConversationModel.fromMap(d.data(), d.id))
-          .toList();
-      conversations.sort((a, b) =>
-          (b.updatedAt ?? DateTime(0)).compareTo(a.updatedAt ?? DateTime(0)));
-      return conversations;
-    });
-  }
-
-  Stream<List<MessageModel>> watchConversationMessages(String conversationId) {
-    return _db
-        .collection(AppConstants.messagesCollection)
-        .where('conversationId', isEqualTo: conversationId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => MessageModel.fromMap(d.data(), d.id)).toList());
   }
 
   Future<void> sendTextMessage({
@@ -409,26 +382,22 @@ class FirestoreService {
     required String content,
   }) async {
     final batch = _db.batch();
+    final msgDoc = _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId)
+        .collection(AppConstants.messagesCollection)
+        .doc();
 
-    // Detect if content is an image URL to show a friendly preview
-    final isImage = content.startsWith('http') &&
-        (content.contains('cloudinary') || content.contains('firebasestorage'));
-    final displayContent = isImage ? 'đã gửi một ảnh' : content;
-
-    final msgDoc = _db.collection(AppConstants.messagesCollection).doc();
     batch.set(msgDoc, {
-      'conversationId': conversationId,
+      'id': msgDoc.id,
       'senderId': senderId,
       'content': content,
       'type': 'text',
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    final convRef = _db
-        .collection(AppConstants.conversationsCollection)
-        .doc(conversationId);
-    batch.update(convRef, {
-      'lastMessage': displayContent,
+    batch.update(_db.collection(AppConstants.conversationsCollection).doc(conversationId), {
+      'lastMessage': content,
       'lastMessageSenderId': senderId,
       'readBy': [senderId],
       'updatedAt': FieldValue.serverTimestamp(),
@@ -444,10 +413,14 @@ class FirestoreService {
     required String photoId,
   }) async {
     final batch = _db.batch();
+    final msgDoc = _db
+        .collection(AppConstants.conversationsCollection)
+        .doc(conversationId)
+        .collection(AppConstants.messagesCollection)
+        .doc();
 
-    final msgDoc = _db.collection(AppConstants.messagesCollection).doc();
     batch.set(msgDoc, {
-      'conversationId': conversationId,
+      'id': msgDoc.id,
       'senderId': senderId,
       'content': content,
       'type': 'photo_reply',
@@ -455,16 +428,8 @@ class FirestoreService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // Detect if reply content is an image URL
-    final isImage = content.startsWith('http') &&
-        (content.contains('cloudinary') || content.contains('firebasestorage'));
-    final displayContent = isImage ? 'một ảnh' : content;
-
-    final convRef = _db
-        .collection(AppConstants.conversationsCollection)
-        .doc(conversationId);
-    batch.update(convRef, {
-      'lastMessage': 'Đã trả lời $displayContent',
+    batch.update(_db.collection(AppConstants.conversationsCollection).doc(conversationId), {
+      'lastMessage': 'Replied to a photo: $content',
       'lastMessageSenderId': senderId,
       'readBy': [senderId],
       'updatedAt': FieldValue.serverTimestamp(),
@@ -479,32 +444,27 @@ class FirestoreService {
     required String reactionEmoji,
     required String photoId,
   }) async {
-    final preview = 'Reacted $reactionEmoji to a photo';
-    final batch = _db.batch();
+    await sendPhotoReplyMessage(
+      conversationId: conversationId,
+      senderId: senderId,
+      content: 'Reacted with $reactionEmoji',
+      photoId: photoId,
+    );
+  }
 
-    final msgDoc = _db.collection(AppConstants.messagesCollection).doc();
-    batch.set(msgDoc, {
-      'conversationId': conversationId,
-      'senderId': senderId,
-      'content': reactionEmoji,
-      'type': 'reaction',
-      'photoId': photoId,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+  Stream<List<MessageModel>> watchMessages(String photoId) {
+    // This seems to be for watching messages related to a specific photo (replies)
+    // We use collectionGroup to find all messages with this photoId
+    return _db
+        .collectionGroup(AppConstants.messagesCollection)
+        .where('photoId', isEqualTo: photoId)
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((snap) =>
+            snap.docs.map((d) => MessageModel.fromMap(d.data(), d.id)).toList());
+  }
 
-    final convRef = _db
-        .collection(AppConstants.conversationsCollection)
-        .doc(conversationId);
-    batch.update(convRef, {
-      'lastMessage': preview,
-      'lastMessageSenderId': senderId,
-      'readBy': [senderId],
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    await batch.commit();
-    Future<void> markConversationAsRead(
-      String conversationId, String userId) async {
+  Future<void> markConversationAsRead(String conversationId, String userId) async {
     await _db
         .collection(AppConstants.conversationsCollection)
         .doc(conversationId)
@@ -512,14 +472,16 @@ class FirestoreService {
       'readBy': FieldValue.arrayUnion([userId]),
     });
   }
-}
-  Future<void> markConversationAsRead(
-      String conversationId, String userId) async {
-    await _db
-        .collection(AppConstants.conversationsCollection)
-        .doc(conversationId)
-        .update({
-      'readBy': FieldValue.arrayUnion([userId]),
-    });
+
+  // ─── Combined History ──────────────────────────────────────────────────────
+
+  Stream<List<PhotoModel>> watchCombinedHistory(String currentUserId) async* {
+    yield* watchFeed(currentUserId);
+  }
+
+  Future<PhotoModel?> getPhoto(String photoId) async {
+    final doc = await _db.collection(AppConstants.photosCollection).doc(photoId).get();
+    if (!doc.exists) return null;
+    return PhotoModel.fromMap(doc.data()!, doc.id);
   }
 }

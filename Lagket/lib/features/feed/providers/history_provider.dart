@@ -11,21 +11,26 @@ enum HistoryViewMode { single, grid }
 
 /// Describes which photos to show.
 sealed class HistoryFilter {
-  const HistoryFilter();
+  final DateTime? date;
+  const HistoryFilter({this.date});
 }
 
 class AllPhotosFilter extends HistoryFilter {
-  const AllPhotosFilter();
+  const AllPhotosFilter({super.date});
 }
 
 class MyPhotosFilter extends HistoryFilter {
-  const MyPhotosFilter();
+  const MyPhotosFilter({super.date});
 }
 
 class FriendPhotosFilter extends HistoryFilter {
   final String friendId;
   final String friendName;
-  const FriendPhotosFilter({required this.friendId, required this.friendName});
+  const FriendPhotosFilter({
+    required this.friendId,
+    required this.friendName,
+    super.date,
+  });
 }
 
 // ─── State providers ──────────────────────────────────────────────────────────
@@ -59,18 +64,26 @@ final filteredHistoryProvider = Provider<AsyncValue<List<PhotoModel>>>((ref) {
   final currentUser = ref.watch(currentUserProvider).value;
 
   return all.whenData((photos) {
-    switch (filter) {
-      case AllPhotosFilter():
-        return photos;
-      case MyPhotosFilter():
-        return photos
-            .where((p) => p.senderId == currentUser?.id)
-            .toList();
-      case FriendPhotosFilter(:final friendId):
-        return photos
-            .where((p) => p.senderId == friendId)
-            .toList();
+    // 1. Base filter by sender
+    Iterable<PhotoModel> filtered = photos;
+    
+    if (filter is MyPhotosFilter) {
+      filtered = photos.where((p) => p.senderId == currentUser?.id);
+    } else if (filter is FriendPhotosFilter) {
+      filtered = photos.where((p) => p.senderId == filter.friendId);
     }
+
+    // 2. Apply date filter if present
+    if (filter.date != null) {
+      final d = filter.date!;
+      filtered = filtered.where((p) {
+        if (p.createdAt == null) return false;
+        final ct = p.createdAt!;
+        return ct.year == d.year && ct.month == d.month && ct.day == d.day;
+      });
+    }
+
+    return filtered.toList();
   });
 });
 
@@ -100,20 +113,27 @@ final calendarPhotosProvider = StreamProvider<List<PhotoModel>>((ref) {
       .watchSentPhotosForYear(user.id, year);
 });
 
-/// Photos keyed by their normalized date [DateTime(y, m, d)] for O(1) lookup.
-/// When multiple photos exist on the same day, keeps the most recently created.
-final photosByDateProvider = Provider<Map<DateTime, PhotoModel>>((ref) {
+/// Photos grouped by their normalized date [DateTime(y, m, d)].
+/// The list is sorted by createdAt descending (newest first).
+final photosByDateProvider = Provider<Map<DateTime, List<PhotoModel>>>((ref) {
   final photos = ref.watch(calendarPhotosProvider).value ?? [];
-  final map = <DateTime, PhotoModel>{};
+  final map = <DateTime, List<PhotoModel>>{};
+  
   for (final photo in photos) {
     if (photo.createdAt == null) continue;
     final d = photo.createdAt!;
     final key = DateTime(d.year, d.month, d.day);
-    // Keep the later photo if multiple on same day.
-    if (!map.containsKey(key) ||
-        photo.createdAt!.isAfter(map[key]!.createdAt!)) {
-      map[key] = photo;
+    
+    if (!map.containsKey(key)) {
+      map[key] = [];
     }
+    map[key]!.add(photo);
   }
+
+  // Sort each list by newest first
+  for (final key in map.keys) {
+    map[key]!.sort((a, b) => b.createdAt!.compareTo(a.createdAt!));
+  }
+
   return map;
 });

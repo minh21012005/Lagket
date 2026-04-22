@@ -5,11 +5,14 @@ import 'package:photo_view/photo_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../../auth/providers/auth_provider.dart';
 import '../../camera/providers/camera_provider.dart';
 import '../providers/reaction_provider.dart';
 import '../providers/message_provider.dart';
+import '../../../core/services/ai_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firestore_service.dart';
@@ -73,6 +76,10 @@ class _PhotoDetailContent extends ConsumerStatefulWidget {
 class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
   final _msgController = TextEditingController();
   bool _sendingMsg = false;
+  bool _isAILoading = false;
+  List<String> _aiEnhancedUrls = [];
+  String _imageDescription = "";
+  int _aiSeed = 0;
 
   @override
   void dispose() {
@@ -148,6 +155,179 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
           // Reaction was saved – conversation failure is non-fatal.
         }
       }
+    }
+  }
+
+  Future<void> _enhanceWithAI() async {
+    setState(() {
+      _isAILoading = true;
+      _aiEnhancedUrls = [];
+    });
+
+    try {
+      final aiService = ref.read(aiServiceProvider);
+      
+      // Sử dụng trực tiếp URL ảnh gốc để Cloudinary xử lý làm đẹp
+      final urls = aiService.getEnhancedImageUrls(widget.photo.imageUrl, seed: _aiSeed);
+      
+      if (mounted) {
+        setState(() {
+          _aiEnhancedUrls = urls;
+          _isAILoading = false;
+        });
+        _showAIResultsSheet();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isAILoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Enhancement Error: $e')),
+        );
+      }
+    }
+  }
+
+  void _showAIResultsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          height: MediaQuery.of(context).size.height * 0.75,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'AI Beautify ✨',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      _aiSeed++;
+                      setSheetState(() => _isAILoading = true);
+                      final aiService = ref.read(aiServiceProvider);
+                      final newUrls = aiService.getEnhancedImageUrls(widget.photo.imageUrl, seed: _aiSeed);
+                      
+                      // Giả lập load nhanh
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        if (context.mounted) {
+                          setSheetState(() {
+                            _aiEnhancedUrls = newUrls;
+                            _isAILoading = false;
+                          });
+                        }
+                      });
+                    },
+                    icon: const Icon(Iconsax.refresh, color: AppColors.primary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'We enhanced the colors and lighting while keeping your original photo. Choose your favorite version.',
+                style: TextStyle(color: Colors.white54, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: _isAILoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: _aiEnhancedUrls.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 16),
+                        itemBuilder: (context, index) {
+                          final url = _aiEnhancedUrls[index];
+                          return GestureDetector(
+                            onTap: () => _selectAIImage(url),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Stack(
+                                children: [
+                                  CachedNetworkImage(
+                                    imageUrl: url,
+                                    height: 200,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    placeholder: (_, __) => Container(
+                                      height: 200,
+                                      color: Colors.white10,
+                                      child: const Center(
+                                          child: CircularProgressIndicator()),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    bottom: 12,
+                                    right: 12,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.6),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: const Text(
+                                        'Select',
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectAIImage(String url) async {
+    Navigator.pop(context); // Đóng BottomSheet
+    setState(() => _isAILoading = true);
+
+    try {
+      final dio = Dio();
+      final tempDir = await getTemporaryDirectory();
+      final path = '${tempDir.path}/ai_enhanced_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      await dio.download(url, path);
+      
+      if (mounted) {
+        // Chuyển sang màn hình Preview
+        ref.read(capturedFileProvider.notifier).state = File(path);
+        ref.read(isPrivateProvider.notifier).state = true; // Đánh dấu là Private
+        context.push('/preview');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download image: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAILoading = false);
     }
   }
 
@@ -344,6 +524,7 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
                     if (image != null && mounted) {
                       ref.read(capturedFileProvider.notifier).state =
                           File(image.path);
+                      ref.read(isPrivateProvider.notifier).state = false;
                       context.push('/preview');
                     }
                   },
@@ -359,7 +540,111 @@ class _PhotoDetailContentState extends ConsumerState<_PhotoDetailContent> {
                   ),
                 ),
 
+                const SizedBox(width: 20),
+
+                // ── AI Magic Button (Only for own photos) ────────────
+                if (widget.photo.senderId == currentUserId)
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _isAILoading ? null : _enhanceWithAI,
+                      child: Container(
+                        height: 48,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF00D2FF), Color(0xFF928DAB)],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00D2FF).withValues(alpha: 0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: _isAILoading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation(Colors.white),
+                                  ),
+                                )
+                              : const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Iconsax.magicpen, color: Colors.white, size: 20),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      'Generate',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 16,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+
                 // ── Message input & Send (Only if not my photo) ──────
+                if (widget.photo.senderId != currentUserId) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _msgController,
+                      style: const TextStyle(color: Colors.white),
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(currentUserId),
+                      decoration: InputDecoration(
+                        hintText: 'Say something…',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.12),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _sendingMsg
+                        ? null
+                        : () => _sendMessage(currentUserId),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        shape: BoxShape.circle,
+                      ),
+                      child: _sendingMsg
+                          ? const Padding(
+                              padding: EdgeInsets.all(10),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation(
+                                      Colors.white)),
+                            )
+                          : const Icon(Iconsax.send_1,
+                              color: Colors.white, size: 20),
+                    ),
+                  ),
+                ],
+
+                const SizedBox(width: 20),
                 if (widget.photo.senderId != currentUserId) ...[
                   const SizedBox(width: 8),
                   Expanded(

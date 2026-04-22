@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../notification/services/fcm_service.dart';
 import '../../feed/providers/history_provider.dart';
+import '../../friend/providers/friend_provider.dart';
 import '../providers/camera_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -109,9 +110,27 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
                 : null,
           ),
           // Profile (top-right)
-          IconButton(
-            icon: const Icon(Iconsax.user, color: Colors.white, size: 22),
-            onPressed: () => context.push('/profile'),
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Iconsax.user, color: Colors.white, size: 22),
+                onPressed: () => context.push('/profile'),
+              ),
+              if (ref.watch(incomingRequestsProvider).value?.isNotEmpty ?? false)
+                Positioned(
+                  right: 12,
+                  top: 12,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.black, width: 1.5),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

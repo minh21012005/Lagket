@@ -70,7 +70,7 @@ class MessageListScreen extends ConsumerWidget {
 
             // ── Conversation list ───────────────────────────────────────────
             Expanded(
-              child: conversationsAsync.when(
+              child: ref.watch(allChatsProvider).when(
                 loading: () => const Center(
                   child: CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation(AppColors.primary),
@@ -81,15 +81,15 @@ class MessageListScreen extends ConsumerWidget {
                       style: AppTextStyles.bodyMedium
                           .copyWith(color: AppColors.error)),
                 ),
-                data: (conversations) {
-                  if (conversations.isEmpty) {
+                data: (chatItems) {
+                  if (chatItems.isEmpty) {
                     return const _EmptyState();
                   }
                   return ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-                    itemCount: conversations.length,
+                    itemCount: chatItems.length,
                     itemBuilder: (_, i) => _ConversationTile(
-                      conversation: conversations[i],
+                      item: chatItems[i],
                       myId: currentUser?.id ?? '',
                     ),
                   );
@@ -106,115 +106,128 @@ class MessageListScreen extends ConsumerWidget {
 // ─── Conversation tile ────────────────────────────────────────────────────────
 
 class _ConversationTile extends ConsumerWidget {
-  final ConversationModel conversation;
+  final ChatListItem item;
   final String myId;
 
   const _ConversationTile({
-    required this.conversation,
+    required this.item,
     required this.myId,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final otherId = conversation.otherParticipant(myId);
-    final otherUserAsync = ref.watch(conversationUserProvider(otherId));
+    final otherUser = item.friend;
+    final conversation = item.conversation;
 
-    return otherUserAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (otherUser) {
-        return GestureDetector(
-          onTap: () => context.push('/conversation/${conversation.id}'),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+    return GestureDetector(
+      onTap: () async {
+        if (conversation != null) {
+          context.push('/conversation/${conversation.id}');
+        } else {
+          // Create conversation on the fly
+          final convId = await ref.read(
+            getOrCreateConversationProvider((myId, otherUser.id)).future,
+          );
+          if (context.mounted) {
+            context.push('/conversation/$convId');
+          }
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            // ── Avatar ────────────────────────────────────────────
+            UserAvatar(
+              avatarUrl: otherUser.avatarUrl,
+              username: otherUser.displayUsername,
+              size: 50,
             ),
-            child: Row(
-              children: [
-                // ── Avatar ────────────────────────────────────────────
-                UserAvatar(
-                  avatarUrl: otherUser?.avatarUrl,
-                  username: otherUser?.displayUsername ?? '?',
-                  size: 50,
-                ),
-                const SizedBox(width: 12),
+            const SizedBox(width: 12),
 
-                // ── Text info ─────────────────────────────────────────
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            // ── Text info ─────────────────────────────────────────
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              otherId == myId
-                                  ? 'You'
-                                  : (otherUser?.displayUsername ?? 'Unknown'),
-                              style: AppTextStyles.labelLarge,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (conversation.updatedAt != null)
-                            Text(
-                              DateFormatter.timeAgo(conversation.updatedAt!),
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.textHint,
-                              ),
-                            ),
-                        ],
+                      Expanded(
+                        child: Text(
+                          otherUser.displayUsername,
+                          style: AppTextStyles.labelLarge,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Iconsax.message_text,
-                              size: 12, color: AppColors.textHint),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              _formatLastMessage(
-                                conversation.lastMessage,
-                                conversation.lastMessageSenderId == myId,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.bodySmall.copyWith(
-                                color: conversation.readBy.contains(myId)
-                                    ? AppColors.textSecondary
-                                    : Colors.white,
-                                fontWeight: conversation.readBy.contains(myId)
-                                    ? FontWeight.normal
-                                    : FontWeight.bold,
-                                shadows: !conversation.readBy.contains(myId)
-                                    ? [
-                                        Shadow(
-                                          color: AppColors.primary
-                                              .withValues(alpha: 0.5),
-                                          blurRadius: 8,
-                                        ),
-                                      ]
-                                    : null,
-                              ),
-                            ),
+                      if (conversation?.updatedAt != null)
+                        Text(
+                          DateFormatter.timeAgo(conversation!.updatedAt!),
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textHint,
                           ),
-                        ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                          conversation == null
+                              ? Iconsax.message_add
+                              : Iconsax.message_text,
+                          size: 12,
+                          color: AppColors.textHint),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          conversation == null
+                              ? 'Start a conversation'
+                              : _formatLastMessage(
+                                  conversation.lastMessage,
+                                  conversation.lastMessageSenderId == myId,
+                                ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: conversation == null ||
+                                    conversation.readBy.contains(myId)
+                                ? AppColors.textSecondary
+                                : Colors.white,
+                            fontWeight: conversation != null &&
+                                    !conversation.readBy.contains(myId)
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            shadows: conversation != null &&
+                                    !conversation.readBy.contains(myId)
+                                ? [
+                                    Shadow(
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.5),
+                                      blurRadius: 8,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ),
-
-                const SizedBox(width: 8),
-                const Icon(Iconsax.arrow_right_3,
-                    size: 16, color: AppColors.textHint),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
+
+            const SizedBox(width: 8),
+            const Icon(Iconsax.arrow_right_3,
+                size: 16, color: AppColors.textHint),
+          ],
+        ),
+      ),
     );
   }
 

@@ -50,17 +50,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final notifier = ref.read(profileNotifierProvider.notifier);
+    
+    final success = await ref.read(profileNotifierProvider.notifier).updateProfile(
+      username: _usernameCtrl.text.trim(),
+      avatarFile: _selectedAvatar,
+    );
 
-    bool ok = true;
-    if (_selectedAvatar != null) {
-      ok = await notifier.updateAvatar(_selectedAvatar!);
-    }
-    if (ok) {
-      ok = await notifier.updateUsername(_usernameCtrl.text.trim());
-    }
-
-    if (ok && mounted) {
+    if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('✅ Profile updated!'),

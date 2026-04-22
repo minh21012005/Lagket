@@ -38,8 +38,10 @@ class UserAvatar extends StatelessWidget {
       child: ClipOval(
         child: avatarUrl != null && avatarUrl!.isNotEmpty
             ? CachedNetworkImage(
+                key: ValueKey(avatarUrl), // Force re-render when URL changes
                 imageUrl: avatarUrl!,
                 fit: BoxFit.cover,
+                // Add cache manager configuration if needed, but key is usually enough
                 placeholder: (_, __) => _initials,
                 errorWidget: (_, __, ___) => _initials,
               )

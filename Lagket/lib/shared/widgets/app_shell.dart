@@ -164,6 +164,13 @@ class AppShell extends ConsumerWidget {
       });
     }
 
+    // ─── Unread Badge Logic ───────────────────────────────────────────────
+    final conversations = ref.watch(conversationListProvider).value ?? [];
+    final hasUnreadMessages = conversations.any((c) => !c.readBy.contains(currentUserId));
+
+    final friendRequests = ref.watch(incomingRequestsProvider).value ?? [];
+    final hasPendingRequests = friendRequests.isNotEmpty;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       extendBody: true,
@@ -172,6 +179,8 @@ class AppShell extends ConsumerWidget {
         current: current,
         tabs: _tabs,
         onTap: _onTap,
+        hasUnreadMessages: hasUnreadMessages,
+        hasPendingRequests: hasPendingRequests,
       ),
     );
   }
@@ -183,8 +192,16 @@ class _FloatingNavBar extends StatelessWidget {
   final int current;
   final List<_TabItem> tabs;
   final ValueChanged<int> onTap;
-  const _FloatingNavBar(
-      {required this.current, required this.tabs, required this.onTap});
+  final bool hasUnreadMessages;
+  final bool hasPendingRequests;
+
+  const _FloatingNavBar({
+    required this.current,
+    required this.tabs,
+    required this.onTap,
+    required this.hasUnreadMessages,
+    required this.hasPendingRequests,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -210,6 +227,10 @@ class _FloatingNavBar extends StatelessWidget {
           final selected = i == current;
           final tab = tabs[i];
           final isCenter = i == 1;
+
+          // Determine if this tab should show a badge
+          bool showBadge = false;
+          if (i == 2 && hasUnreadMessages) showBadge = true; // Messages tab
 
           return Expanded(
             child: GestureDetector(
@@ -241,34 +262,53 @@ class _FloatingNavBar extends StatelessWidget {
                               ),
                       )
                     : null,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    // Icon
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        selected ? tab.activeIcon : tab.icon,
-                        key: ValueKey(selected),
-                        size: isCenter ? 26 : 22,
-                        color: selected
-                            ? (isCenter ? Colors.white : AppColors.primary)
-                            : AppColors.textSecondary,
-                      ),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // Icon
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            selected ? tab.activeIcon : tab.icon,
+                            key: ValueKey(selected),
+                            size: isCenter ? 26 : 22,
+                            color: selected
+                                ? (isCenter ? Colors.white : AppColors.primary)
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        // Label
+                        AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 200),
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 10,
+                            color: selected
+                                ? (isCenter ? Colors.white : AppColors.primary)
+                                : AppColors.textHint,
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                          ),
+                          child: Text(tab.label),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    // Label
-                    AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 200),
-                      style: AppTextStyles.caption.copyWith(
-                        fontSize: 10,
-                        color: selected
-                            ? (isCenter ? Colors.white : AppColors.primary)
-                            : AppColors.textHint,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    if (showBadge)
+                      Positioned(
+                        top: 8,
+                        right: 20,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: AppColors.error,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.surface, width: 1.5),
+                          ),
+                        ),
                       ),
-                      child: Text(tab.label),
-                    ),
                   ],
                 ),
               ),

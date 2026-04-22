@@ -61,6 +61,8 @@ class _CameraScreenState extends ConsumerState<CameraScreen>
     final path =
         await ref.read(cameraNotifierProvider.notifier).capture();
     if (path != null && mounted) {
+      // Reset private state when starting a new capture session
+      ref.read(isPrivateProvider.notifier).state = false;
       ref.read(capturedFileProvider.notifier).state = File(path);
       context.push('/preview');
     }

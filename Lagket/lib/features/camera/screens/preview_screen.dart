@@ -91,6 +91,7 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen>
           icon: const Icon(Iconsax.close_circle, color: Colors.white, size: 28),
           onPressed: () {
             ref.read(capturedFileProvider.notifier).state = null;
+            ref.read(isPrivateProvider.notifier).state = false;
             ref.read(cameraNotifierProvider.notifier).clearCapture();
             context.pop();
           },
@@ -100,9 +101,13 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen>
         fit: StackFit.expand,
         children: [
           // Preview image
-          Image.file(
-            file,
-            fit: BoxFit.cover,
+          Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()..scale(ref.read(cameraNotifierProvider).isFrontCamera ? -1.0 : 1.0, 1.0),
+            child: Image.file(
+              file,
+              fit: BoxFit.cover,
+            ),
           ),
 
           // Content Overlay
@@ -233,6 +238,9 @@ class _PreviewScreenState extends ConsumerState<PreviewScreen>
                               ref
                                   .read(capturedFileProvider.notifier)
                                   .state = null;
+                              ref
+                                  .read(isPrivateProvider.notifier)
+                                  .state = false;
                               ref
                                   .read(cameraNotifierProvider.notifier)
                                   .clearCapture();
